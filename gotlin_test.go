@@ -2,6 +2,8 @@ package gotlin
 
 import (
 	"context"
+	"fmt"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -9,20 +11,27 @@ import (
 	"gorm.io/gorm"
 )
 
-func TestGotlin(t *testing.T) {
-	err := run()
-	require.Nil(t, err)
+var testDriver = "mysql"
+var testDSN string
+
+func init() {
+	dsn := "root:%s@tcp(127.0.0.1:3306)/gotlin?charset=utf8mb4&parseTime=True&loc=Local"
+	password := os.Getenv("MYSQL_ROOT_PASSWORE")
+	testDSN = fmt.Sprintf(dsn, password)
 }
 
-func run() error {
+func getTestDB() *gorm.DB {
+	db, err := gorm.Open(mysql.Open(testDSN), &gorm.Config{})
+	if err != nil {
+		panic(err)
+	}
+	return db
+}
+
+func TestGotlin_ProgramCounterProcessor(t *testing.T) {
 	ctx := context.Background()
 
-	dsn := "root:ca18ab7be64df8343b648c28591bca1a@tcp(127.0.0.1:3306)/gotlin?charset=utf8mb4&parseTime=True&loc=Local"
-	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
-	if err != nil {
-		return err
-	}
-	db = db.Debug()
+	db := getTestDB().Debug()
 
 	g := NewGotlin(WithDatabase(db))
 
@@ -45,17 +54,71 @@ func run() error {
 		p = p.AddInstruction(in.ID)
 	}
 
-	p, _ = p.ChangeState(StateReady)
+	p, ok := p.ChangeState(StateReady)
+	require.True(t, ok)
 
-	err = g.LoadScheduler(ctx, s)
-	if err != nil {
-		return err
-	}
+	err := g.LoadScheduler(ctx, s)
+	require.Nil(t, err)
 
 	err = g.LoadProgram(ctx, p, ins)
-	if err != nil {
-		return err
+	require.Nil(t, err)
+
+	err = g.AssignScheduler(ctx, s, p)
+	require.Nil(t, err)
+}
+
+func TestGotlin_DatabaseQuery(t *testing.T) {
+	ctx := context.Background()
+
+	db := getTestDB().Debug()
+
+	var err error
+	defer func() {
+		r := recover()
+		fmt.Printf("recover: %v\n", r)
+		cleanSQL := "DELETE FROM test_users WHERE id IN (1, 2)"
+		_ = db.Exec(cleanSQL).Error
+		require.Nil(t, err)
+	}()
+
+	preSQLs := []string{
+		"CREATE TABLE IF NOT EXISTS test_users(id int(10) PRIMARY KEY, name varchar(50) NOT NULL, age int(10) NOT NULL)",
+		"INSERT INTO test_users VALUES(1, 'Rick', 48), (2, 'Michonne', 44)",
+	}
+	for _, preSQL := range preSQLs {
+		err = db.Exec(preSQL).Error
+		require.Nil(t, err)
 	}
 
-	return g.AssignScheduler(ctx, s, p)
+	g := NewGotlin(WithDatabase(db))
+
+	s := NewScheduler()
+
+	converters := []QueryConverter{QueryConverterFirstValue}
+	d1 := NewDatabaseQuery(testDriver, testDSN, "select age from test_users where name = 'Rick'", converters)
+	i1 := NewInstruction().ChangeDatabaseQuery(d1)
+
+	d2 := NewDatabaseQuery(testDriver, testDSN, "select age from test_users where name = 'Michonne'", converters)
+	i2 := NewInstruction().ChangeDatabaseQuery(d2)
+
+	i3 := NewInstruction().ChangeToArithmetic(OpCodeAdd)
+
+	ins := []Instruction{i1, i2, i3}
+
+	p := NewProgram()
+	for _, in := range ins {
+		p = p.AddInstruction(in.ID)
+	}
+
+	p, ok := p.ChangeState(StateReady)
+	require.True(t, ok)
+
+	err = g.LoadScheduler(ctx, s)
+	require.Nil(t, err)
+
+	err = g.LoadProgram(ctx, p, ins)
+	require.Nil(t, err)
+
+	err = g.AssignScheduler(ctx, s, p)
+	require.Nil(t, err)
 }

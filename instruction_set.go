@@ -82,6 +82,10 @@ var (
 		OpCode:   OpCodeMove,
 		Executor: ExecuteMoveInstruction,
 	}
+	InputInstructionHandler = InstructionHandler{
+		OpCode:   OpCodeIn,
+		Executor: ExecuteInputInstruction,
+	}
 	AddInstructionHandler = InstructionHandler{
 		OpCode:   OpCodeAdd,
 		Executor: ExecuteArithmeticInstruction,
@@ -102,6 +106,7 @@ var (
 
 var DefaultInstructionHandlers = []InstructionHandler{
 	MoveInstructionHandler,
+	InputInstructionHandler,
 	AddInstructionHandler,
 	SubInstructionHandler,
 	MulInstructionHandler,
@@ -116,19 +121,25 @@ func ExecuteArithmeticInstruction(ctx context.Context, op Instruction, args ...I
 
 	n := len(args)
 	if n > 0 {
-		tmp, ok := args[0].GetRegisterResult()
-		if !ok {
-			return InstructionResult{}, ErrRegisterResult
+		in := args[0]
+		tmp, err := in.InstructionResult(ctx)
+		if err != nil {
+			return InstructionResult{},
+				errors.Wrapf(err, "Get arithmetic instruction operands, %v", in.ID.String())
 		}
 		result = cast.ToFloat64(tmp)
 	}
 
 	for i := 1; i < n; i++ {
-		tmp, ok := args[i].GetRegisterResult()
-		if !ok {
-			return InstructionResult{}, ErrRegisterResult
+		in := args[i]
+		tmp, err := in.InstructionResult(ctx)
+		if err != nil {
+			return InstructionResult{},
+				errors.Wrapf(err, "Get arithmetic instruction operands, %v", in.ID.String())
 		}
+
 		x := cast.ToFloat64(tmp)
+
 		switch op.OpCode {
 		case OpCodeAdd:
 			result += x
@@ -150,9 +161,19 @@ func ExecuteArithmeticInstruction(ctx context.Context, op Instruction, args ...I
 }
 
 func ExecuteMoveInstruction(ctx context.Context, op Instruction, args ...Instruction) (InstructionResult, error) {
-	v, ok := op.Operand.ImmediateValue()
-	if !ok {
-		return InstructionResult{}, errors.New("Only immediate value is supported")
+	v, err := op.OperandValue(ctx)
+	if err != nil {
+		return InstructionResult{},
+			errors.Wrapf(err, "Get move instruction operands, %v", op.ID.String())
+	}
+	return NewRegisterResult(v), nil
+}
+
+func ExecuteInputInstruction(ctx context.Context, op Instruction, args ...Instruction) (InstructionResult, error) {
+	v, err := op.OperandValue(ctx)
+	if err != nil {
+		return InstructionResult{},
+			errors.Wrapf(err, "Get in instruction operands, %v", op.ID.String())
 	}
 	return NewRegisterResult(v), nil
 }

@@ -1,6 +1,10 @@
 package gotlin
 
-import "github.com/pkg/errors"
+import (
+	"context"
+
+	"github.com/pkg/errors"
+)
 
 type Instruction struct {
 	ID         InstructionID
@@ -28,8 +32,12 @@ func NewInstruction() Instruction {
 	}
 }
 
-func (m Instruction) GetRegisterResult() (interface{}, bool) {
-	return m.Result.RegisterValue()
+func (m Instruction) OperandValue(ctx context.Context) (interface{}, error) {
+	return m.Operand.OperandValue(ctx)
+}
+
+func (m Instruction) InstructionResult(ctx context.Context) (interface{}, error) {
+	return m.Result.InstructionResult(ctx)
 }
 
 func (m Instruction) IsState(state State) bool {
@@ -44,6 +52,12 @@ func (m Instruction) ChangeState(state State) (Instruction, bool) {
 func (m Instruction) ChangeImmediateValue(value interface{}) Instruction {
 	m.OpCode = OpCodeMove
 	m.Operand = NewImmediateValue(value)
+	return m
+}
+
+func (m Instruction) ChangeDatabaseQuery(v DatabaseQuery) Instruction {
+	m.OpCode = OpCodeIn
+	m.Operand = NewDatabaseQueryOperand(v)
 	return m
 }
 

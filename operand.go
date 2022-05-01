@@ -3,9 +3,14 @@ package gotlin
 import (
 	"context"
 	"encoding/json"
+	"strings"
 
 	"github.com/pkg/errors"
+	"github.com/spf13/cast"
+	"gorm.io/gorm"
 )
+
+var EmptyQueryResult = struct{}{}
 
 type Operand struct {
 	Type  string
@@ -19,6 +24,10 @@ func NewEmptyOperand() Operand {
 
 func NewImmediateValue(u interface{}) Operand {
 	v := Immediate{Value: u}
+	return Operand{Type: v.Type(), Value: v}
+}
+
+func NewDatabaseQueryOperand(v DatabaseQuery) Operand {
 	return Operand{Type: v.Type(), Value: v}
 }
 
@@ -97,17 +106,185 @@ func (v Immediate) OperandValue(context.Context) (interface{}, error) {
 	return v.Value, nil
 }
 
+type QueryConverter string
+
+const QueryConverterFlat QueryConverter = "Flat"
+const QueryConverterFirstValue QueryConverter = "FirstValue"
+
 type DatabaseQuery struct {
 	Driver     string
-	Dsn        string
+	DSN        string
 	Query      string
-	Converters []string
+	Converters []QueryConverter
+}
+
+func NewDatabaseQuery(driver, dsn, query string, converters []QueryConverter) DatabaseQuery {
+	return DatabaseQuery{driver, dsn, query, converters}
 }
 
 func (v DatabaseQuery) Type() string {
 	return "Database"
 }
 
-func (v DatabaseQuery) OperandValue(context.Context) (interface{}, error) {
-	return 0, nil
+func (v DatabaseQuery) OperandValue(ctx context.Context) (interface{}, error) {
+	db, err := databasePool.Get(v.Driver, v.DSN)
+	if err != nil {
+		return nil, errors.Wrap(err, "Get a database connection")
+	}
+	return v.DoQuery(ctx, db)
+}
+
+func (v DatabaseQuery) IsFlat() bool {
+	for _, c := range v.Converters {
+		if c == QueryConverterFlat {
+			return true
+		}
+	}
+	return false
+}
+
+func (v DatabaseQuery) IsFirstValue() bool {
+	for _, c := range v.Converters {
+		if c == QueryConverterFirstValue {
+			return true
+		}
+	}
+	return false
+}
+
+func (v DatabaseQuery) DoQuery(ctx context.Context, db *gorm.DB) (interface{}, error) {
+	if v.IsFirstValue() {
+		return v.FirstValueQuery(ctx, db)
+	}
+	if v.IsFlat() {
+		return v.FlatQuery(ctx, db)
+	}
+	return v.MapQuery(ctx, db)
+}
+
+func (v DatabaseQuery) FirstValueQuery(ctx context.Context, db *gorm.DB) (interface{}, error) {
+	rows, err := db.WithContext(ctx).Raw(v.Query).Rows()
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	columnTypes, err := rows.ColumnTypes()
+	if err != nil {
+		return nil, err
+	}
+
+	typeName := columnTypes[0].DatabaseTypeName()
+
+	for rows.Next() {
+		var value interface{}
+		err = rows.Scan(&value)
+		if err != nil {
+			return nil, err
+		}
+		return parseSQLValueIntoRealType(value, typeName)
+	}
+	return EmptyQueryResult, nil
+}
+
+func (v DatabaseQuery) FlatQuery(ctx context.Context, db *gorm.DB) (interface{}, error) {
+	rows, err := db.WithContext(ctx).Raw(v.Query).Rows()
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	columnTypes, err := rows.ColumnTypes()
+	if err != nil {
+		return nil, err
+	}
+
+	typeName := columnTypes[0].DatabaseTypeName()
+
+	list := []interface{}{}
+	for rows.Next() {
+		var value interface{}
+		err = rows.Scan(&value)
+		if err != nil {
+			return nil, err
+		}
+
+		value, err = parseSQLValueIntoRealType(value, typeName)
+		if err != nil {
+			return nil, err
+		}
+
+		list = append(list, value)
+	}
+	return list, nil
+}
+
+func (v DatabaseQuery) MapQuery(ctx context.Context, db *gorm.DB) (interface{}, error) {
+	rows, err := db.WithContext(ctx).Raw(v.Query).Rows()
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	cols, err := rows.Columns()
+	if err != nil {
+		return nil, err
+	}
+
+	columnTypes, err := rows.ColumnTypes()
+	if err != nil {
+		return nil, err
+	}
+
+	pointers := make([]interface{}, len(cols))
+
+	list := []Map{}
+	for rows.Next() {
+		values := make([]interface{}, len(cols))
+		for i := range values {
+			pointers[i] = &values[i]
+		}
+
+		err := rows.Scan(pointers...)
+		if err != nil {
+			return nil, err
+		}
+
+		m := make(Map)
+		for i, name := range cols {
+
+			value, err := parseSQLValueIntoRealType(values[i], columnTypes[i].DatabaseTypeName())
+			if err != nil {
+				return nil, err
+			}
+
+			m[name] = value
+		}
+		list = append(list, m)
+	}
+	return list, nil
+}
+
+func parseSQLValueIntoRealType(value interface{}, columnType string) (interface{}, error) {
+	t := strings.ToUpper(columnType)
+
+	if strings.Contains(t, "CHAR") || strings.Contains(t, "TEXT") {
+		return cast.ToStringE(value)
+	} else if strings.Contains(t, "INT") {
+		s, err := cast.ToStringE(value)
+		if err != nil {
+			return nil, err
+		}
+		return cast.ToInt64E(s)
+	} else if strings.Contains(t, "FLOAT") || strings.Contains(t, "DECIMAL") {
+		s, err := cast.ToStringE(value)
+		if err != nil {
+			return nil, err
+		}
+		return cast.ToFloat64E(s)
+	} else if strings.Contains(t, "BLOB") {
+		return value, nil
+	}
+
+	return nil, errors.Errorf("Column type %s is not supported", columnType)
 }
