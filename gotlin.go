@@ -138,11 +138,22 @@ func (g *Gotlin) initProgram(ctx context.Context, s Scheduler, p Program) (Progr
 }
 
 func (g *Gotlin) runProgram(ctx context.Context, s Scheduler, p Program) error {
-	is := NewInstructionSet()
-	processor := NewPCProcessor(g.ProgramRepository, g.InstructionRepository, is)
-	err := processor.Process(ctx, p)
+	processor, err := g.getProcessor(p)
 	if err != nil {
-		return errors.Wrap(err, "Process program")
+		return err
 	}
-	return nil
+
+	err = processor.Process(ctx, p)
+	return errors.Wrap(err, "Process program")
+}
+
+func (g *Gotlin) getProcessor(p Program) (Processor, error) {
+	is := NewInstructionSet()
+	if p.IsPCProcessor() {
+		return NewPCProcessor(g.ProgramRepository, g.InstructionRepository, is), nil
+	}
+	if p.IsDAGProcessor() {
+		return NewDAGProcessor(g.ProgramRepository, g.InstructionRepository, is), nil
+	}
+	return nil, errors.New("Processor cannot be parsed")
 }

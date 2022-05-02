@@ -38,6 +38,15 @@ func (m Program) NextPC(id InstructionID) Program {
 	return m
 }
 
+func (m Program) ChangeProcessor(p ProcessorContext) Program {
+	m.Processor = p
+	return m
+}
+
+func (m Program) IsDAGProcessor() bool {
+	return m.Processor.IsDAG()
+}
+
 func (m Program) IsState(state State) bool {
 	return m.State == state
 }

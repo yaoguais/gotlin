@@ -3,9 +3,12 @@ package gotlin
 import (
 	"context"
 	"fmt"
+	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"testing"
 
+	"github.com/spf13/cast"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -18,6 +21,10 @@ func init() {
 	dsn := "root:%s@tcp(127.0.0.1:3306)/gotlin?charset=utf8mb4&parseTime=True&loc=Local"
 	password := os.Getenv("MYSQL_ROOT_PASSWORE")
 	testDSN = fmt.Sprintf(dsn, password)
+
+	go func() {
+		http.ListenAndServe(":8000", nil)
+	}()
 }
 
 func getTestDB() *gorm.DB {
@@ -31,7 +38,7 @@ func getTestDB() *gorm.DB {
 func TestGotlin_ProgramCounterProcessor(t *testing.T) {
 	ctx := context.Background()
 
-	db := getTestDB().Debug()
+	db := getTestDB()
 
 	g := NewGotlin(WithDatabase(db))
 
@@ -42,12 +49,8 @@ func TestGotlin_ProgramCounterProcessor(t *testing.T) {
 	i3 := NewInstruction().ChangeToArithmetic(OpCodeAdd)
 	i4 := NewInstruction().ChangeImmediateValue(4)
 	i5 := NewInstruction().ChangeToArithmetic(OpCodeMul)
-	// i6 := NewInstruction().ChangeImmediateValue(0)
-	// i7 := NewInstruction().ChangeToArithmetic(OpCodeDiv)
-	// i8 := NewInstruction().ChangeImmediateValue(8)
-	// i9 := NewInstruction().ChangeToArithmetic(OpCodeSub)
 
-	ins := []Instruction{i1, i2, i3, i4, i5} // i6, i7, i8, i9,
+	ins := []Instruction{i1, i2, i3, i4, i5}
 
 	p := NewProgram()
 	for _, in := range ins {
@@ -70,12 +73,13 @@ func TestGotlin_ProgramCounterProcessor(t *testing.T) {
 func TestGotlin_DatabaseQuery(t *testing.T) {
 	ctx := context.Background()
 
-	db := getTestDB().Debug()
+	db := getTestDB()
 
 	var err error
 	defer func() {
-		r := recover()
-		fmt.Printf("recover: %v\n", r)
+		if r := recover(); err != nil {
+			fmt.Printf("recover: %v\n", r)
+		}
 		cleanSQL := "DELETE FROM test_users WHERE id IN (1, 2)"
 		_ = db.Exec(cleanSQL).Error
 		require.Nil(t, err)
@@ -121,4 +125,64 @@ func TestGotlin_DatabaseQuery(t *testing.T) {
 
 	err = g.AssignScheduler(ctx, s, p)
 	require.Nil(t, err)
+}
+
+func TestGotlin_DAGProcessor(t *testing.T) {
+	ctx := context.Background()
+
+	db := getTestDB()
+
+	g := NewGotlin(WithDatabase(db))
+
+	s := NewScheduler()
+
+	i1 := NewInstruction().ChangeImmediateValue(1)
+	i2 := NewInstruction().ChangeImmediateValue(2)
+	i3 := NewInstruction().ChangeToArithmetic(OpCodeAdd)
+	i4 := NewInstruction().ChangeImmediateValue(4)
+	i5 := NewInstruction().ChangeToArithmetic(OpCodeMul)
+
+	ins := []Instruction{i1, i2, i3, i4, i5}
+
+	p := NewProgram()
+	for _, in := range ins {
+		p = p.AddInstruction(in.ID)
+	}
+
+	d := NewInstructionDAG()
+
+	ids := []InstructionID{}
+	for _, v := range ins {
+		ids = append(ids, v.ID)
+	}
+	err := d.Add(ids...)
+	require.Nil(t, err)
+
+	err = d.AttachChildren(i3.ID, i1.ID, i2.ID)
+	require.Nil(t, err)
+	err = d.AttachChildren(i5.ID, i3.ID, i4.ID)
+	require.Nil(t, err)
+
+	p = p.ChangeProcessor(NewDAGProcessorContext(d, 3))
+
+	p, ok := p.ChangeState(StateReady)
+	require.True(t, ok)
+
+	err = g.LoadScheduler(ctx, s)
+	require.Nil(t, err)
+
+	err = g.LoadProgram(ctx, p, ins)
+	require.Nil(t, err)
+
+	err = g.AssignScheduler(ctx, s, p)
+	require.Nil(t, err)
+
+	ans := d.Ancestors()
+	require.Equal(t, 1, len(ans))
+
+	in, err := g.InstructionRepository.Find(ctx, ans[0])
+	require.Nil(t, err)
+	value, err := in.InstructionResult(ctx)
+	require.Nil(t, err)
+	require.Equal(t, 12, cast.ToInt(value))
 }

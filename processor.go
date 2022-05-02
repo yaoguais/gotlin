@@ -7,7 +7,7 @@ import (
 )
 
 type Processor interface {
-	Proccess(context.Context, Program) error
+	Process(context.Context, Program) error
 }
 
 type PCProcessor struct {

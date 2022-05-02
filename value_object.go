@@ -163,8 +163,8 @@ func (v ProgramCode) AddInstruction(id InstructionID) ProgramCode {
 type ControlUnitType string
 
 const (
-	ControlUnitTypePC  ControlUnitType = "program_counter"
-	ControlUnitTypeDAG ControlUnitType = "dag"
+	ControlUnitTypePC  ControlUnitType = "ProgramCounter"
+	ControlUnitTypeDAG ControlUnitType = "DAG"
 )
 
 type ProcessorContext struct {
@@ -181,16 +181,16 @@ func NewProcessorContext() ProcessorContext {
 	}
 }
 
+func NewDAGProcessorContext(d InstructionDAG, core int) ProcessorContext {
+	return ProcessorContext{
+		ControlUnit: ControlUnitTypeDAG,
+		Core:        core,
+		Data:        d.MarshalString(),
+	}
+}
+
 func (v ProcessorContext) IsPC() bool {
 	return v.ControlUnit == ControlUnitTypePC
-}
-
-func (v ProcessorContext) IsSync() bool {
-	return v.Core <= 1 || v.ControlUnit == ControlUnitTypePC
-}
-
-func (v ProcessorContext) IsConcurrently() bool {
-	return v.Core > 1 && v.ControlUnit == ControlUnitTypeDAG
 }
 
 func (v ProcessorContext) CurrentPC() (InstructionID, bool) {
@@ -204,6 +204,10 @@ func (v ProcessorContext) CurrentPC() (InstructionID, bool) {
 func (v ProcessorContext) ChangePC(id InstructionID) ProcessorContext {
 	v.Data = id.String()
 	return v
+}
+
+func (v ProcessorContext) IsDAG() bool {
+	return v.ControlUnit == ControlUnitTypeDAG
 }
 
 type SchedulerID = ID
