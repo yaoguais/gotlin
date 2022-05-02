@@ -91,12 +91,15 @@ func ParseInstructionID(s string) (InstructionID, error) {
 type OpCode string
 
 const (
-	OpCodeAdd  OpCode = "ADD"
-	OpCodeSub  OpCode = "SUB"
-	OpCodeMul  OpCode = "MUL"
-	OpCodeDiv  OpCode = "DIV"
-	OpCodeIn   OpCode = "IN"
-	OpCodeMove OpCode = "MOV"
+	OpCodeAdd       OpCode = "ADD"
+	OpCodeSub       OpCode = "SUB"
+	OpCodeMul       OpCode = "MUL"
+	OpCodeDiv       OpCode = "DIV"
+	OpCodeIn        OpCode = "IN"
+	OpCodeMove      OpCode = "MOV"
+	OpCodeIntersect OpCode = "INTERSECT"
+	OpCodeUnion     OpCode = "UNION"
+	OpCodeDiff      OpCode = "DIFF"
 )
 
 func ParseOpCode(s string) (OpCode, error) {

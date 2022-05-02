@@ -83,7 +83,7 @@ func TestGotlin_DatabaseQuery(t *testing.T) {
 		if r := recover(); err != nil {
 			fmt.Printf("recover: %v\n", r)
 		}
-		cleanSQL := "DELETE FROM test_users WHERE id IN (1, 2)"
+		cleanSQL := "DROP TABLE test_users"
 		_ = db.Exec(cleanSQL).Error
 		require.Nil(t, err)
 	}()
@@ -189,4 +189,78 @@ func TestGotlin_DAGProcessor(t *testing.T) {
 	value, err := in.InstructionResult(ctx)
 	require.Nil(t, err)
 	require.Equal(t, 12, cast.ToInt(value))
+}
+
+func TestGotlin_CollectionInstruction(t *testing.T) {
+	ctx := context.Background()
+
+	db := getTestDB()
+
+	var err error
+	defer func() {
+		if r := recover(); err != nil {
+			fmt.Printf("recover: %v\n", r)
+		}
+		cleanSQL := "DROP TABLE test_collections"
+		_ = db.Exec(cleanSQL).Error
+		require.Nil(t, err)
+	}()
+
+	preSQLs := []string{
+		"CREATE TABLE IF NOT EXISTS test_collections(id int(10) PRIMARY KEY, name varchar(50) NOT NULL, score decimal(8,2) NOT NULL)",
+		"INSERT INTO test_collections VALUES(1, 'C1', 0.2), (2, 'C2', 0.2)",
+		"INSERT INTO test_collections VALUES(3, 'C3', 1.2), (4, 'C3', 2.4)",
+	}
+	for _, preSQL := range preSQLs {
+		err = db.Exec(preSQL).Error
+		require.Nil(t, err)
+	}
+
+	g := NewGotlin(WithDatabase(db))
+
+	s := NewScheduler()
+
+	err = g.LoadScheduler(ctx, s)
+	require.Nil(t, err)
+
+	qs := []struct {
+		Query1 string
+		Query2 string
+		OpCode OpCode
+		Result interface{}
+	}{
+		{
+			"select name from test_collections where id IN (1, 3)",
+			"select name from test_collections where id IN (2, 4)",
+			OpCodeIntersect,
+			nil,
+		},
+	}
+
+	for _, q := range qs {
+		converters := []QueryConverter{QueryConverterFlat}
+		d1 := NewDatabaseQuery(testDriver, testDSN, q.Query1, converters)
+		i1 := NewInstruction().ChangeDatabaseQuery(d1)
+
+		d2 := NewDatabaseQuery(testDriver, testDSN, q.Query2, converters)
+		i2 := NewInstruction().ChangeDatabaseQuery(d2)
+
+		i3 := NewInstruction().ChangeToArithmetic(q.OpCode)
+
+		ins := []Instruction{i1, i2, i3}
+
+		p := NewProgram()
+		for _, in := range ins {
+			p = p.AddInstruction(in.ID)
+		}
+
+		p, ok := p.ChangeState(StateReady)
+		require.True(t, ok)
+
+		err = g.LoadProgram(ctx, p, ins)
+		require.Nil(t, err)
+
+		err = g.AssignScheduler(ctx, s, p)
+		require.Nil(t, err)
+	}
 }
