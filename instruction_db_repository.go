@@ -58,7 +58,8 @@ func (r InstructionDBRepository) create(ctx context.Context, m *Instruction) (er
 	if err != nil {
 		return
 	}
-	return r.db.WithContext(ctx).Create(&e).Error
+	err = r.db.WithContext(ctx).Create(&e).Error
+	return
 }
 
 func (r InstructionDBRepository) update(ctx context.Context, m *Instruction) (err error) {

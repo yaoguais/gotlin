@@ -14,6 +14,9 @@ type DAGProcessor struct {
 	InstructionRepository InstructionRepository
 	InstructionDAG        InstructionDAG
 	c                     chan InstructionID
+	cores                 chan struct{}
+	wg                    *sync.WaitGroup
+	err                   error
 }
 
 func NewDAGProcessor(pr ProgramRepository, ir InstructionRepository, is *InstructionSet) *DAGProcessor {
@@ -21,10 +24,16 @@ func NewDAGProcessor(pr ProgramRepository, ir InstructionRepository, is *Instruc
 		InstructionSet:        is,
 		ProgramRepository:     pr,
 		InstructionRepository: ir,
+		wg:                    &sync.WaitGroup{},
 	}
 }
 
 func (m *DAGProcessor) Process(ctx context.Context, p Program) error {
+	defer m.wg.Wait()
+
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	dag, err := ParseInstructionDAG(p.Processor.Data)
 	if err != nil {
 		return err
@@ -32,9 +41,11 @@ func (m *DAGProcessor) Process(ctx context.Context, p Program) error {
 
 	m.InstructionDAG = dag
 	m.DAGState = NewDAGState(ctx, &p, m.ProgramRepository, dag, m.InstructionRepository)
-	m.c = make(chan InstructionID, p.Processor.Core)
+	m.c = make(chan InstructionID)
+	m.cores = make(chan struct{}, p.Processor.Core)
 
-	go m.Walk()
+	m.wg.Add(1)
+	go m.Walk(ctx)
 
 	err = m.Loop(ctx, p)
 	if err == ErrNoMoreInstruction {
@@ -42,15 +53,22 @@ func (m *DAGProcessor) Process(ctx context.Context, p Program) error {
 	}
 
 	return err
-
 }
 
-func (m *DAGProcessor) Walk() {
+func (m *DAGProcessor) Walk(ctx context.Context) {
 	defer close(m.c)
+	defer m.wg.Done()
 
 	for !m.DAGState.IsFinish() {
-		for in := range m.InstructionDAG.Iterator() {
-			m.c <- in
+		for in := range m.InstructionDAG.Iterator(ctx) {
+			select {
+			case m.c <- in:
+				if m.DAGState.IsFinish() {
+					return
+				}
+			case <-ctx.Done():
+				return
+			}
 		}
 	}
 }
@@ -83,6 +101,10 @@ func (m *DAGProcessor) Loop(ctx context.Context, p Program) (err error) {
 
 func (m *DAGProcessor) Current(ctx context.Context) (Instruction, error) {
 	for {
+		if m.err != nil {
+			return Instruction{}, m.err
+		}
+
 		id, ok := <-m.c
 		if !ok {
 			return Instruction{}, ErrNoMoreInstruction
@@ -105,10 +127,39 @@ func (m *DAGProcessor) Current(ctx context.Context) (Instruction, error) {
 		if err := ins.Error(); err != nil {
 			return Instruction{}, err
 		}
+
+		if err := m.DAGState.Next(); err != nil {
+			return Instruction{}, err
+		}
 	}
 }
 
 func (m *DAGProcessor) Execute(ctx context.Context, op Instruction) error {
+	if m.err != nil {
+		return m.err
+	}
+
+	err := m.RequestACore(ctx)
+	if err != nil {
+		return err
+	}
+
+	m.wg.Add(1)
+	go func() {
+		defer m.wg.Done()
+		defer m.ReleaseACore(ctx)
+
+		err := m.execute(ctx, op)
+		if err != nil {
+			m.err = err
+			return
+		}
+	}()
+
+	return nil
+}
+
+func (m *DAGProcessor) execute(ctx context.Context, op Instruction) error {
 	executor, err := m.InstructionSet.GetExecutor(op.OpCode)
 	if err != nil {
 		return err
@@ -123,9 +174,12 @@ func (m *DAGProcessor) Execute(ctx context.Context, op Instruction) error {
 
 	err = m.SaveExecuteResult(ctx, op, result, execError)
 	if err != nil {
-		return errors.Wrap(execError, err.Error())
+		if execError != nil {
+			return errors.Wrap(execError, err.Error())
+		}
+		return errors.Wrap(err, "Save results after executing instruction")
 	}
-	return execError
+	return errors.Wrap(execError, "Executing instruction")
 }
 
 func (m *DAGProcessor) GetInstructionArgs(ctx context.Context, op Instruction) ([]Instruction, error) {
@@ -156,17 +210,28 @@ func (m *DAGProcessor) SaveExecuteResult(ctx context.Context, op Instruction, re
 }
 
 func (m *DAGProcessor) Next(ctx context.Context) error {
+	if m.err != nil {
+		return m.err
+	}
 	return m.DAGState.Next()
 }
 
-func (m *DAGProcessor) FinishProgram(ctx context.Context, program *Program, exitErr error) error {
-	p := program.ExitOnError(exitErr)
-	err := m.ProgramRepository.Save(ctx, &p)
-	if err != nil {
-		return errors.Wrapf(err, "Exit error %v", exitErr)
+func (m *DAGProcessor) RequestACore(ctx context.Context) error {
+	select {
+	case m.cores <- struct{}{}:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
 	}
-	*program = p
-	return nil
+}
+
+func (m *DAGProcessor) ReleaseACore(ctx context.Context) error {
+	select {
+	case <-m.cores:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 type DAGState struct {
@@ -232,6 +297,7 @@ func (m DAGState) Next() (err error) {
 
 	if ancestorsDone {
 		m.finish()
+		return ErrNoMoreInstruction
 	}
 
 	return nil
@@ -296,8 +362,8 @@ func (m DAGInstructionState) Run() error {
 }
 
 func (m DAGInstructionState) Error() error {
-	if m.in.IsState(StateExit) {
-		return m.in.Error
+	if m.in.IsState(StateBlocked) {
+		return errors.Wrapf(ErrInstructionState, "Is blocked, %v", m.in.State)
 	}
-	return errors.Wrapf(ErrInstructionState, "Is not exit, %v", m.in.State)
+	return m.in.Error
 }

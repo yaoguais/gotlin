@@ -100,9 +100,12 @@ func (m *PCProcessor) Execute(ctx context.Context, op Instruction) error {
 
 	err = m.SaveExecuteResult(ctx, op, result, execError)
 	if err != nil {
-		return errors.Wrap(execError, err.Error())
+		if execError != nil {
+			return errors.Wrap(execError, err.Error())
+		}
+		return errors.Wrap(err, "Save results after executing instruction")
 	}
-	return execError
+	return errors.Wrap(execError, "Executing instruction")
 }
 
 func (m *PCProcessor) GetInstructionArgs(ctx context.Context, op Instruction) ([]Instruction, error) {

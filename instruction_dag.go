@@ -1,6 +1,7 @@
 package gotlin
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -172,18 +173,21 @@ func (d InstructionDAG) ancestors(id string) InstructionID {
 	return d.ancestors(ids[0])
 }
 
-func (d InstructionDAG) Iterator() chan InstructionID {
+func (d InstructionDAG) Iterator(ctx context.Context) chan InstructionID {
 	c := make(chan InstructionID)
 
 	visitor := VisitorFunc(func(v dag.Vertexer) {
 		_, value := v.Vertex()
 		in := value.(InstructionID)
-		c <- in
+		select {
+		case c <- in:
+		case <-ctx.Done():
+		}
 	})
 
 	go func() {
 		defer close(c)
-		d.dag.BFSWalk(visitor)
+		d.dag.DFSWalk(visitor)
 	}()
 
 	return c

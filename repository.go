@@ -37,5 +37,5 @@ func requestNewUpdateTime(old int64) int64 {
 }
 
 func isRecordNotFound(err error) bool {
-	return gerrors.Is(err, gorm.ErrRecordNotFound)
+	return err != nil && gerrors.Is(err, gorm.ErrRecordNotFound)
 }

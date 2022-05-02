@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 var testDriver = "mysql"
@@ -28,7 +29,9 @@ func init() {
 }
 
 func getTestDB() *gorm.DB {
-	db, err := gorm.Open(mysql.Open(testDSN), &gorm.Config{})
+	db, err := gorm.Open(mysql.Open(testDSN), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Silent),
+	})
 	if err != nil {
 		panic(err)
 	}
@@ -182,6 +185,7 @@ func TestGotlin_DAGProcessor(t *testing.T) {
 
 	in, err := g.InstructionRepository.Find(ctx, ans[0])
 	require.Nil(t, err)
+	require.Nil(t, in.Error)
 	value, err := in.InstructionResult(ctx)
 	require.Nil(t, err)
 	require.Equal(t, 12, cast.ToInt(value))
