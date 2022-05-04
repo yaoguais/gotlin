@@ -1,0 +1,70 @@
+syntax = "proto3";
+
+package gotlin;
+
+option go_package = "github.com/yaoguais/gotlin";
+
+service ServerService {
+    rpc RegisterExecutor(RegisterExecutorRequest) returns(RegisterExecutorResponse) {}
+    rpc UnregisterExecutor(UnregisterExecutorRequest) returns(UnregisterExecutorResponse) {}
+    rpc ExecuteCommand(stream CommandFromClient) returns (stream CommandToClient) {}
+}
+
+message RegisterExecutorRequest {
+    message Label {
+        string key = 1;
+        string value = 2;
+    }
+    string id = 1;
+    repeated Label labels = 2;
+    string host = 3;
+}
+
+message RegisterExecutorResponse {
+}
+
+message UnregisterExecutorRequest {
+    string id = 1;
+    string error = 2;
+}
+
+message UnregisterExecutorResponse {
+}
+
+enum CommandType {
+    Unknown = 0;
+    ConnectToServer = 1;
+    Ping = 2;
+    Pong = 3;
+    ExecuteInstruction = 4;
+}
+
+message CommandFromClient {
+    message ExecuteInstruction {
+        string id = 1; 
+        string opcode = 2;
+        bytes result = 3;
+    }
+    string id = 1;
+    CommandType type = 2;
+    int64 spent = 3;
+    ExecuteInstruction execute_instruction = 4;
+}
+
+message CommandToClient {
+    message Instruction {
+        string id = 1; 
+        string opcode = 2;
+        bytes operand = 3;
+        bytes result = 4;
+    }
+    message ExecuteInstruction {
+        Instruction op = 1;
+        repeated Instruction args = 2;
+    }
+    string id = 1;
+    CommandType type = 2;
+    int64 timeout = 3;
+    string error = 4;
+    ExecuteInstruction execute_instruction = 5;
+}

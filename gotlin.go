@@ -2,15 +2,11 @@ package gotlin
 
 import (
 	"context"
+	"net"
 	"sync"
 
 	"github.com/pkg/errors"
-)
-
-var (
-	ErrSchedulerDuplicated   = errors.New("Scheduler duplicated")
-	ErrProgramDuplicated     = errors.New("Program duplicated")
-	ErrInstructionDuplicated = errors.New("Instruction duplicated")
+	"google.golang.org/grpc"
 )
 
 type Gotlin struct {
@@ -18,20 +14,32 @@ type Gotlin struct {
 	ProgramRepository     ProgramRepository
 	InstructionRepository InstructionRepository
 	ExecutorRepository    ExecutorRepository
+	EnableServer          bool
+	ServerAddress         string
 	ServerExecutor        bool
+	GRPCOption            []grpc.ServerOption
 
 	executorPool *ExecutorPool
 	schedulers   map[SchedulerID]bool
 	programs     map[ProgramID]bool
 	instructions map[InstructionID]bool
+	gs           *grpc.Server
 	mu           sync.RWMutex
 }
 
 func NewGotlin(options ...Option) (*Gotlin, error) {
 	g := &Gotlin{
-		schedulers:   make(map[SchedulerID]bool),
-		programs:     make(map[ProgramID]bool),
-		instructions: make(map[InstructionID]bool),
+		SchedulerRepository:   nil,
+		ProgramRepository:     nil,
+		InstructionRepository: nil,
+		ExecutorRepository:    nil,
+		EnableServer:          true,
+		ServerAddress:         ":9527",
+		ServerExecutor:        false,
+		GRPCOption:            []grpc.ServerOption{},
+		schedulers:            make(map[SchedulerID]bool),
+		programs:              make(map[ProgramID]bool),
+		instructions:          make(map[InstructionID]bool),
 	}
 
 	for _, o := range options {
@@ -45,6 +53,12 @@ func NewGotlin(options ...Option) (*Gotlin, error) {
 		if err != nil {
 			return nil, err
 		}
+	}
+
+	if g.EnableServer {
+		server := grpc.NewServer(g.GRPCOption...)
+		RegisterServerServiceServer(server, NewServerService(g))
+		g.gs = server
 	}
 
 	return g, nil
@@ -103,6 +117,28 @@ func (g *Gotlin) AssignScheduler(ctx context.Context, s Scheduler, p Program) er
 	}
 
 	return g.runProgram(ctx, s, p)
+}
+
+func (g *Gotlin) StartServer(ctx context.Context) (err error) {
+	if g.gs == nil {
+		return errors.New("gRPC server is not enabled")
+	}
+
+	lis, err := net.Listen("tcp", g.ServerAddress)
+	if err != nil {
+		return
+	}
+
+	return g.gs.Serve(lis)
+}
+
+func (g *Gotlin) StopServer(graceful bool) (err error) {
+	if graceful {
+		g.gs.GracefulStop()
+		return
+	}
+	g.gs.Stop()
+	return
 }
 
 func (g *Gotlin) loadProgram(ctx context.Context, p Program) error {

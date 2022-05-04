@@ -119,7 +119,7 @@ func (c ExecutorEntityConverter) ToEntity(m *Executor) (e ExecutorEntity, err er
 	return ExecutorEntity{
 		ID:         m.ID.String(),
 		Labels:     string(labels),
-		Host:       string(m.Host),
+		Host:       m.Host.String(),
 		State:      string(m.State),
 		Error:      error,
 		Limits:     string(limits),

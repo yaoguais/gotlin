@@ -329,6 +329,14 @@ type Host string
 
 const EmptyHost = Host("")
 
+func (v Host) String() string {
+	return string(v)
+}
+
+func (v Host) IsEqual(v2 Host) bool {
+	return v == v2
+}
+
 type Resource struct {
 	CPU       int64
 	Memory    int64

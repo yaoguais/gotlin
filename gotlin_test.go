@@ -9,8 +9,10 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -78,12 +80,13 @@ func assertProgramExecuteResult(t *testing.T, excepted interface{}, g *Gotlin, p
 	require.Equal(t, string(exceptedJSON), string(resultJSON))
 }
 
+// Perform an arithmetic calculation "( 1 + 2 ) * 4", the expected result is 12
 func TestGotlin_ProgramCounterProcessor(t *testing.T) {
 	ctx := context.Background()
 
 	db := getTestDB()
 
-	g, err := NewGotlin(WithDatabase(db), WithServerExecutor(true))
+	g, err := NewGotlin(WithDatabase(db), WithServerExecutor(true), WithEnableServer(false))
 	require.Nil(t, err)
 
 	s := NewScheduler()
@@ -116,6 +119,7 @@ func TestGotlin_ProgramCounterProcessor(t *testing.T) {
 	assertProgramExecuteResult(t, 12, g, p)
 }
 
+// Perform an arithmetic calculation "48 + 44", the expected result is 92
 func TestGotlin_DatabaseQuery(t *testing.T) {
 	ctx := context.Background()
 
@@ -140,7 +144,7 @@ func TestGotlin_DatabaseQuery(t *testing.T) {
 		require.Nil(t, err)
 	}
 
-	g, err := NewGotlin(WithDatabase(db), WithServerExecutor(true))
+	g, err := NewGotlin(WithDatabase(db), WithServerExecutor(true), WithEnableServer(false))
 	require.Nil(t, err)
 
 	s := NewScheduler()
@@ -176,12 +180,13 @@ func TestGotlin_DatabaseQuery(t *testing.T) {
 	assertProgramExecuteResult(t, 92, g, p)
 }
 
+// Perform an arithmetic calculation "( 1 + 2 ) * 4", the expected result is 12
 func TestGotlin_DAGProcessor(t *testing.T) {
 	ctx := context.Background()
 
 	db := getTestDB()
 
-	g, err := NewGotlin(WithDatabase(db), WithServerExecutor(true))
+	g, err := NewGotlin(WithDatabase(db), WithServerExecutor(true), WithEnableServer(false))
 	require.Nil(t, err)
 
 	s := NewScheduler()
@@ -258,7 +263,7 @@ func TestGotlin_CollectionInstruction(t *testing.T) {
 		require.Nil(t, err)
 	}
 
-	g, err := NewGotlin(WithDatabase(db), WithServerExecutor(true))
+	g, err := NewGotlin(WithDatabase(db), WithServerExecutor(true), WithEnableServer(false))
 	require.Nil(t, err)
 
 	qs := []struct {
@@ -320,4 +325,73 @@ func TestGotlin_CollectionInstruction(t *testing.T) {
 
 		assertProgramExecuteResult(t, q.Result, g, p)
 	}
+}
+
+// Perform an arithmetic calculation "( 1 + 2 ) * 4", the expected result is 12
+func TestGotlin_RemoteExecutorViaGRPC(t *testing.T) {
+	ctx := context.Background()
+
+	db := getTestDB()
+
+	g, err := NewGotlin(WithDatabase(db), WithServerExecutor(false), WithEnableServer(true))
+	require.Nil(t, err)
+
+	go func() {
+		err := g.StartServer(ctx)
+		if err != nil {
+			panic(err)
+		}
+	}()
+	defer g.StopServer(false)
+
+	time.Sleep(100 * time.Millisecond)
+
+	s := NewScheduler()
+
+	i1 := NewInstruction().ChangeImmediateValue(1)
+	i2 := NewInstruction().ChangeImmediateValue(2)
+	i3 := NewInstruction().ChangeToArithmetic(OpCodeAdd)
+	i4 := NewInstruction().ChangeImmediateValue(4)
+	i5 := NewInstruction().ChangeToArithmetic(OpCodeMul)
+
+	ins := []Instruction{i1, i2, i3, i4, i5}
+
+	p := NewProgram()
+	for _, in := range ins {
+		p = p.AddInstruction(in.ID)
+	}
+
+	p, ok := p.ChangeState(StateReady)
+	require.True(t, ok)
+
+	err = g.LoadScheduler(ctx, s)
+	require.Nil(t, err)
+
+	err = g.LoadProgram(ctx, p, ins)
+	require.Nil(t, err)
+
+	c, err := NewClient(WithClientGRPCOptions(grpc.WithInsecure()))
+	require.Nil(t, err)
+
+	params := RegisterExecutorParams{
+		ID:     NewExecutorID(),
+		Host:   "127.0.0.1:0",
+		Labels: (&ExecutorPool{}).getDefaultExecutor().Labels, // TODO fix it
+	}
+	err = c.RegisterExecutor(ctx, params)
+	require.Nil(t, err)
+
+	go func() {
+		err := c.LoopCommands(ctx)
+		fmt.Printf("Loop commands, %v\n", err)
+	}()
+
+	time.Sleep(100 * time.Millisecond)
+
+	err = g.AssignScheduler(ctx, s, p)
+	require.Nil(t, err)
+
+	time.Sleep(3000 * time.Millisecond)
+
+	assertProgramExecuteResult(t, 12, g, p)
 }

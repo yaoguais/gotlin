@@ -1,5 +1,11 @@
 package gotlin
 
+import (
+	"net"
+
+	"github.com/pkg/errors"
+)
+
 type Executor struct {
 	ID         ExecutorID
 	Labels     Labels
@@ -28,6 +34,40 @@ func NewExecutor() Executor {
 	}
 }
 
+func newExecutorFromClient(r *RegisterExecutorRequest) (e Executor, err error) {
+	id, err := ParseExecutorID(r.Id)
+	if err != nil {
+		return Executor{}, errors.Wrap(err, "Parse Executor id")
+	}
+	_, _, err = net.SplitHostPort(r.Host)
+	if err != nil {
+		return Executor{}, errors.Wrap(err, "Parse Host")
+	}
+	ls := []string{}
+	for _, v := range r.Labels {
+		ls = append(ls, v.Key)
+		ls = append(ls, v.Value)
+	}
+	labels := NewLabels(ls...)
+	_, ok := labels.Find(OpCodeLabelKey)
+	if !ok {
+		return Executor{}, errors.Errorf("Executor must have %s label", OpCodeLabelKey)
+	}
+
+	return Executor{
+		ID:         id,
+		Labels:     labels,
+		Host:       Host(r.Host),
+		State:      StateRunning,
+		Error:      nil,
+		Limits:     NewEmptyResource(),
+		Usages:     NewEmptyResource(),
+		CreateTime: NewTimestamp(),
+		UpdateTime: NewTimestamp(),
+		FinishTime: TimestampZero,
+	}, nil
+}
+
 func (m Executor) AddLabel(label Label) Executor {
 	m.Labels = m.Labels.Add(label)
 	return m
@@ -44,4 +84,11 @@ func (m Executor) ChangeState(state State) (Executor, bool) {
 
 func (m Executor) IsEmptyHost() bool {
 	return m.Host == EmptyHost
+}
+
+func (m Executor) ExitOnError(err error) Executor {
+	m.Error = err
+	m.State = StateExit
+	m.FinishTime = NewTimestamp()
+	return m
 }
