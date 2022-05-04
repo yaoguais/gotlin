@@ -9,5 +9,12 @@ func WithDatabase(db *gorm.DB) Option {
 		g.SchedulerRepository = NewSchedulerDBRepository(db)
 		g.ProgramRepository = NewProgramDBRepository(db)
 		g.InstructionRepository = NewInstructionDBRepository(db)
+		g.ExecutorRepository = NewExecutorDBRepository(db)
+	}
+}
+
+func WithServerExecutor(enable bool) Option {
+	return func(g *Gotlin) {
+		g.ServerExecutor = true
 	}
 }

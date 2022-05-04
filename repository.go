@@ -11,6 +11,7 @@ var (
 	InstructionTableName = "instructions"
 	ProgramTableName     = "programs"
 	SchedulerTableName   = "schedulers"
+	ExecutorTableName    = "executors"
 )
 
 type InstructionRepository interface {
@@ -26,6 +27,11 @@ type ProgramRepository interface {
 type SchedulerRepository interface {
 	Find(context.Context, SchedulerID) (Scheduler, error)
 	Save(context.Context, *Scheduler) error
+}
+
+type ExecutorRepository interface {
+	Find(context.Context, ExecutorID) (Executor, error)
+	Save(context.Context, *Executor) error
 }
 
 func requestNewUpdateTime(old int64) int64 {

@@ -3,6 +3,7 @@ package gotlin
 import (
 	"encoding/json"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/gofrs/uuid"
@@ -247,3 +248,94 @@ func (v ScheduledPrograms) AddProgram(id ProgramID) ScheduledPrograms {
 }
 
 type Map map[string]interface{}
+
+type ExecutorID = ID
+
+func NewExecutorID() ExecutorID {
+	return ExecutorID(NewID())
+}
+
+func ParseExecutorID(s string) (ExecutorID, error) {
+	v, err := ParseID(s)
+	return ExecutorID(v), err
+}
+
+type Labels []Label
+
+func NewLabels(kv ...string) Labels {
+	n := len(kv)
+	if n%2 != 0 {
+		panic("The number of keys and values should be the same")
+	}
+	ls := []Label{}
+	for i := 0; i < n; i = i + 2 {
+		ls = append(ls, NewLabel(kv[i], kv[i+1]))
+	}
+	return ls
+}
+
+func (v Labels) ExistOpCode(op OpCode) bool {
+	value, ok := v.Find(OpCodeLabelKey)
+	if !ok {
+		return false
+	}
+	ss := strings.Split(value, ",")
+	for _, s := range ss {
+		if s != "" && OpCode(s) == op {
+			return true
+		}
+	}
+	return false
+}
+
+func (v Labels) Find(key string) (string, bool) {
+	for _, v2 := range v {
+		if v2.Key == key {
+			return v2.Value, true
+		}
+	}
+	return "", false
+}
+
+func (v Labels) Add(l Label) Labels {
+	exist := false
+	v2 := Labels{}
+	for _, v3 := range v {
+		if v3.Key == l.Key {
+			v2 = append(v2, l)
+			exist = true
+		} else {
+			v2 = append(v2, v3)
+		}
+	}
+	if !exist {
+		v2 = append(v2, l)
+	}
+	return v2
+}
+
+const OpCodeLabelKey = "opcode"
+
+type Label struct {
+	Key   string
+	Value string
+}
+
+func NewLabel(k, v string) Label {
+	return Label{k, v}
+}
+
+type Host string
+
+const EmptyHost = Host("")
+
+type Resource struct {
+	CPU       int64
+	Memory    int64
+	Disk      int64
+	Bandwidth int64
+}
+
+func NewEmptyResource() Resource {
+	return Resource{}
+}

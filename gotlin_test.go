@@ -10,7 +10,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/spf13/cast"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -49,12 +48,43 @@ func getTestDB() *gorm.DB {
 	return db
 }
 
+func assertProgramExecuteResult(t *testing.T, excepted interface{}, g *Gotlin, p Program) {
+	ctx := context.Background()
+
+	p, err := g.ProgramRepository.Find(ctx, p.ID)
+	require.Nil(t, err)
+	require.Nil(t, p.Error)
+
+	var instructionID InstructionID
+	if p.IsPCProcessor() {
+		instructionID, err = ParseInstructionID(p.Processor.Data)
+		require.Nil(t, err)
+	} else if p.IsDAGProcessor() {
+		d, err := ParseInstructionDAG(p.Processor.Data)
+		require.Nil(t, err)
+		ans := d.Ancestors()
+		require.Equal(t, 1, len(ans))
+		instructionID = ans[0]
+	} else {
+		require.Equal(t, "The type of Processor is wrong", "")
+	}
+
+	in, err := g.InstructionRepository.Find(ctx, instructionID)
+	require.Nil(t, err)
+	result, err := in.InstructionResult(ctx)
+	require.Nil(t, err)
+	resultJSON, _ := json.Marshal(result)
+	exceptedJSON, _ := json.Marshal(excepted)
+	require.Equal(t, string(exceptedJSON), string(resultJSON))
+}
+
 func TestGotlin_ProgramCounterProcessor(t *testing.T) {
 	ctx := context.Background()
 
 	db := getTestDB()
 
-	g := NewGotlin(WithDatabase(db))
+	g, err := NewGotlin(WithDatabase(db), WithServerExecutor(true))
+	require.Nil(t, err)
 
 	s := NewScheduler()
 
@@ -74,7 +104,7 @@ func TestGotlin_ProgramCounterProcessor(t *testing.T) {
 	p, ok := p.ChangeState(StateReady)
 	require.True(t, ok)
 
-	err := g.LoadScheduler(ctx, s)
+	err = g.LoadScheduler(ctx, s)
 	require.Nil(t, err)
 
 	err = g.LoadProgram(ctx, p, ins)
@@ -83,12 +113,7 @@ func TestGotlin_ProgramCounterProcessor(t *testing.T) {
 	err = g.AssignScheduler(ctx, s, p)
 	require.Nil(t, err)
 
-	in, err := g.InstructionRepository.Find(ctx, i5.ID)
-	require.Nil(t, err)
-	result, err := in.InstructionResult(ctx)
-	require.Nil(t, err)
-	resultJSON, _ := json.Marshal(result)
-	require.Equal(t, `12`, string(resultJSON))
+	assertProgramExecuteResult(t, 12, g, p)
 }
 
 func TestGotlin_DatabaseQuery(t *testing.T) {
@@ -115,7 +140,8 @@ func TestGotlin_DatabaseQuery(t *testing.T) {
 		require.Nil(t, err)
 	}
 
-	g := NewGotlin(WithDatabase(db))
+	g, err := NewGotlin(WithDatabase(db), WithServerExecutor(true))
+	require.Nil(t, err)
 
 	s := NewScheduler()
 
@@ -147,12 +173,7 @@ func TestGotlin_DatabaseQuery(t *testing.T) {
 	err = g.AssignScheduler(ctx, s, p)
 	require.Nil(t, err)
 
-	in, err := g.InstructionRepository.Find(ctx, i3.ID)
-	require.Nil(t, err)
-	result, err := in.InstructionResult(ctx)
-	require.Nil(t, err)
-	resultJSON, _ := json.Marshal(result)
-	require.Equal(t, `92`, string(resultJSON))
+	assertProgramExecuteResult(t, 92, g, p)
 }
 
 func TestGotlin_DAGProcessor(t *testing.T) {
@@ -160,7 +181,8 @@ func TestGotlin_DAGProcessor(t *testing.T) {
 
 	db := getTestDB()
 
-	g := NewGotlin(WithDatabase(db))
+	g, err := NewGotlin(WithDatabase(db), WithServerExecutor(true))
+	require.Nil(t, err)
 
 	s := NewScheduler()
 
@@ -183,7 +205,7 @@ func TestGotlin_DAGProcessor(t *testing.T) {
 	for _, v := range ins {
 		ids = append(ids, v.ID)
 	}
-	err := d.Add(ids...)
+	err = d.Add(ids...)
 	require.Nil(t, err)
 
 	err = d.AttachChildren(i3.ID, i1.ID, i2.ID)
@@ -208,12 +230,7 @@ func TestGotlin_DAGProcessor(t *testing.T) {
 	ans := d.Ancestors()
 	require.Equal(t, 1, len(ans))
 
-	in, err := g.InstructionRepository.Find(ctx, ans[0])
-	require.Nil(t, err)
-	require.Nil(t, in.Error)
-	value, err := in.InstructionResult(ctx)
-	require.Nil(t, err)
-	require.Equal(t, 12, cast.ToInt(value))
+	assertProgramExecuteResult(t, 12, g, p)
 }
 
 func TestGotlin_CollectionInstruction(t *testing.T) {
@@ -241,31 +258,32 @@ func TestGotlin_CollectionInstruction(t *testing.T) {
 		require.Nil(t, err)
 	}
 
-	g := NewGotlin(WithDatabase(db))
+	g, err := NewGotlin(WithDatabase(db), WithServerExecutor(true))
+	require.Nil(t, err)
 
 	qs := []struct {
 		Query1 string
 		Query2 string
 		OpCode OpCode
-		Result string
+		Result interface{}
 	}{
 		{
 			"select name from test_collections where id IN (1, 3)",
 			"select name from test_collections where id IN (2, 4)",
 			OpCodeIntersect,
-			`["C3"]`,
+			[]string{"C3"},
 		},
 		{
 			"select id from test_collections where id IN (1, 3)",
 			"select id from test_collections where id IN (3, 4)",
 			OpCodeUnion,
-			`[1,3,4]`,
+			[]int{1, 3, 4},
 		},
 		{
 			"select score from test_collections where id IN (1, 3, 4)",
 			"select score from test_collections where id IN (2, 3)",
 			OpCodeDiff,
-			`[2.4]`,
+			[]float64{2.4},
 		},
 	}
 
@@ -300,11 +318,6 @@ func TestGotlin_CollectionInstruction(t *testing.T) {
 		err = g.AssignScheduler(ctx, s, p)
 		require.Nil(t, err)
 
-		in, err := g.InstructionRepository.Find(ctx, i3.ID)
-		require.Nil(t, err)
-		result, err := in.InstructionResult(ctx)
-		require.Nil(t, err)
-		resultJSON, _ := json.Marshal(result)
-		require.Equal(t, q.Result, string(resultJSON))
+		assertProgramExecuteResult(t, q.Result, g, p)
 	}
 }

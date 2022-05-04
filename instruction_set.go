@@ -10,11 +10,11 @@ import (
 
 var ErrNoExecutorFound = errors.New("No executor found")
 
-type Executor func(context.Context, Instruction, ...Instruction) (InstructionResult, error)
+type ExecutorHandler func(context.Context, Instruction, ...Instruction) (InstructionResult, error)
 
 type InstructionHandler struct {
 	OpCode   OpCode
-	Executor Executor
+	Executor ExecutorHandler
 }
 
 type InstructionSet struct {
@@ -54,7 +54,7 @@ func (m *InstructionSet) Unregister(handler InstructionHandler) error {
 	return nil
 }
 
-func (m *InstructionSet) GetExecutor(op OpCode) (Executor, error) {
+func (m *InstructionSet) GetExecutorHandler(op OpCode) (ExecutorHandler, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 

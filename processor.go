@@ -11,17 +11,17 @@ type Processor interface {
 }
 
 type PCProcessor struct {
-	InstructionSet        *InstructionSet
+	ExecutorPool          *ExecutorPool
 	PCState               PCState
 	ProgramRepository     ProgramRepository
 	InstructionRepository InstructionRepository
 }
 
-func NewPCProcessor(pr ProgramRepository, ir InstructionRepository, is *InstructionSet) *PCProcessor {
+func NewPCProcessor(pr ProgramRepository, ir InstructionRepository, ep *ExecutorPool) *PCProcessor {
 	return &PCProcessor{
 		ProgramRepository:     pr,
 		InstructionRepository: ir,
-		InstructionSet:        is,
+		ExecutorPool:          ep,
 	}
 }
 
@@ -86,17 +86,12 @@ func (m *PCProcessor) Current(ctx context.Context) (Instruction, error) {
 }
 
 func (m *PCProcessor) Execute(ctx context.Context, op Instruction) error {
-	executor, err := m.InstructionSet.GetExecutor(op.OpCode)
-	if err != nil {
-		return err
-	}
-
 	args, err := m.GetInstructionArgs(ctx, op)
 	if err != nil {
 		return err
 	}
 
-	result, execError := executor(ctx, op, args...)
+	result, execError := m.ExecutorPool.Execute(ctx, op, args...)
 
 	err = m.SaveExecuteResult(ctx, op, result, execError)
 	if err != nil {

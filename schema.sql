@@ -40,3 +40,20 @@ CREATE TABLE IF NOT EXISTS schedulers (
     INDEX idx_update(update_time),
     INDEX idx_finish(finish_time)
 );
+
+CREATE TABLE IF NOT EXISTS executors (
+    id VARCHAR(36) NOT NULL,
+    labels TEXT NOT NULL,
+    host VARCHAR(20) NOT NULL,
+    state VARCHAR(20) NOT NULL,
+    error TEXT NOT NULL,
+    limits TEXT NOT NULL,
+    usages TEXT NOT NULL,
+    create_time bigint(20) NOT NULL,
+    update_time bigint(20) NOT NULL,
+    finish_time bigint(20) NOT NULL,
+    PRIMARY KEY(id),
+    INDEX idx_create(create_time),
+    INDEX idx_update(update_time),
+    INDEX idx_finish(finish_time)
+);

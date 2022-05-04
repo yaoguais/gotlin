@@ -8,7 +8,7 @@ import (
 )
 
 type DAGProcessor struct {
-	InstructionSet        *InstructionSet
+	ExecutorPool          *ExecutorPool
 	DAGState              DAGState
 	ProgramRepository     ProgramRepository
 	InstructionRepository InstructionRepository
@@ -19,9 +19,9 @@ type DAGProcessor struct {
 	err                   error
 }
 
-func NewDAGProcessor(pr ProgramRepository, ir InstructionRepository, is *InstructionSet) *DAGProcessor {
+func NewDAGProcessor(pr ProgramRepository, ir InstructionRepository, ep *ExecutorPool) *DAGProcessor {
 	return &DAGProcessor{
-		InstructionSet:        is,
+		ExecutorPool:          ep,
 		ProgramRepository:     pr,
 		InstructionRepository: ir,
 		wg:                    &sync.WaitGroup{},
@@ -160,17 +160,12 @@ func (m *DAGProcessor) Execute(ctx context.Context, op Instruction) error {
 }
 
 func (m *DAGProcessor) execute(ctx context.Context, op Instruction) error {
-	executor, err := m.InstructionSet.GetExecutor(op.OpCode)
-	if err != nil {
-		return err
-	}
-
 	args, err := m.GetInstructionArgs(ctx, op)
 	if err != nil {
 		return err
 	}
 
-	result, execError := executor(ctx, op, args...)
+	result, execError := m.ExecutorPool.Execute(ctx, op, args...)
 
 	err = m.SaveExecuteResult(ctx, op, result, execError)
 	if err != nil {

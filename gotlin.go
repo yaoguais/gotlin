@@ -17,14 +17,17 @@ type Gotlin struct {
 	SchedulerRepository   SchedulerRepository
 	ProgramRepository     ProgramRepository
 	InstructionRepository InstructionRepository
+	ExecutorRepository    ExecutorRepository
+	ServerExecutor        bool
 
+	executorPool *ExecutorPool
 	schedulers   map[SchedulerID]bool
 	programs     map[ProgramID]bool
 	instructions map[InstructionID]bool
 	mu           sync.RWMutex
 }
 
-func NewGotlin(options ...Option) *Gotlin {
+func NewGotlin(options ...Option) (*Gotlin, error) {
 	g := &Gotlin{
 		schedulers:   make(map[SchedulerID]bool),
 		programs:     make(map[ProgramID]bool),
@@ -35,7 +38,16 @@ func NewGotlin(options ...Option) *Gotlin {
 		o(g)
 	}
 
-	return g
+	g.executorPool = NewExecutorPool(g.ExecutorRepository)
+
+	if g.ServerExecutor {
+		err := g.executorPool.AddServerExecutor()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return g, nil
 }
 
 func (g *Gotlin) LoadScheduler(ctx context.Context, s Scheduler) error {
@@ -148,12 +160,11 @@ func (g *Gotlin) runProgram(ctx context.Context, s Scheduler, p Program) error {
 }
 
 func (g *Gotlin) getProcessor(p Program) (Processor, error) {
-	is := NewInstructionSet()
 	if p.IsPCProcessor() {
-		return NewPCProcessor(g.ProgramRepository, g.InstructionRepository, is), nil
+		return NewPCProcessor(g.ProgramRepository, g.InstructionRepository, g.executorPool), nil
 	}
 	if p.IsDAGProcessor() {
-		return NewDAGProcessor(g.ProgramRepository, g.InstructionRepository, is), nil
+		return NewDAGProcessor(g.ProgramRepository, g.InstructionRepository, g.executorPool), nil
 	}
 	return nil, errors.New("Processor cannot be parsed")
 }
