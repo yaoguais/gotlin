@@ -2,10 +2,12 @@ package gotlin
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/spf13/cast"
@@ -20,8 +22,17 @@ var testDSN string
 
 func init() {
 	dsn := "root:%s@tcp(127.0.0.1:3306)/gotlin?charset=utf8mb4&parseTime=True&loc=Local"
-	password := os.Getenv("MYSQL_ROOT_PASSWORE")
+	password := os.Getenv("MYSQL_ROOT_PASSWORD")
 	testDSN = fmt.Sprintf(dsn, password)
+
+	db := getTestDB()
+	tableSQLs, _ := os.ReadFile("./schema.sql")
+	for _, s := range strings.Split(string(tableSQLs), ";\n") {
+		s = strings.TrimSpace(s)
+		if s != "" {
+			_ = db.Exec(s).Error
+		}
+	}
 
 	go func() {
 		http.ListenAndServe(":8000", nil)
@@ -71,6 +82,13 @@ func TestGotlin_ProgramCounterProcessor(t *testing.T) {
 
 	err = g.AssignScheduler(ctx, s, p)
 	require.Nil(t, err)
+
+	in, err := g.InstructionRepository.Find(ctx, i5.ID)
+	require.Nil(t, err)
+	result, err := in.InstructionResult(ctx)
+	require.Nil(t, err)
+	resultJSON, _ := json.Marshal(result)
+	require.Equal(t, `12`, string(resultJSON))
 }
 
 func TestGotlin_DatabaseQuery(t *testing.T) {
@@ -128,6 +146,13 @@ func TestGotlin_DatabaseQuery(t *testing.T) {
 
 	err = g.AssignScheduler(ctx, s, p)
 	require.Nil(t, err)
+
+	in, err := g.InstructionRepository.Find(ctx, i3.ID)
+	require.Nil(t, err)
+	result, err := in.InstructionResult(ctx)
+	require.Nil(t, err)
+	resultJSON, _ := json.Marshal(result)
+	require.Equal(t, `92`, string(resultJSON))
 }
 
 func TestGotlin_DAGProcessor(t *testing.T) {
@@ -218,26 +243,38 @@ func TestGotlin_CollectionInstruction(t *testing.T) {
 
 	g := NewGotlin(WithDatabase(db))
 
-	s := NewScheduler()
-
-	err = g.LoadScheduler(ctx, s)
-	require.Nil(t, err)
-
 	qs := []struct {
 		Query1 string
 		Query2 string
 		OpCode OpCode
-		Result interface{}
+		Result string
 	}{
 		{
 			"select name from test_collections where id IN (1, 3)",
 			"select name from test_collections where id IN (2, 4)",
 			OpCodeIntersect,
-			nil,
+			`["C3"]`,
+		},
+		{
+			"select id from test_collections where id IN (1, 3)",
+			"select id from test_collections where id IN (3, 4)",
+			OpCodeUnion,
+			`[1,3,4]`,
+		},
+		{
+			"select score from test_collections where id IN (1, 3, 4)",
+			"select score from test_collections where id IN (2, 3)",
+			OpCodeDiff,
+			`[2.4]`,
 		},
 	}
 
 	for _, q := range qs {
+		s := NewScheduler()
+
+		err = g.LoadScheduler(ctx, s)
+		require.Nil(t, err)
+
 		converters := []QueryConverter{QueryConverterFlat}
 		d1 := NewDatabaseQuery(testDriver, testDSN, q.Query1, converters)
 		i1 := NewInstruction().ChangeDatabaseQuery(d1)
@@ -262,5 +299,12 @@ func TestGotlin_CollectionInstruction(t *testing.T) {
 
 		err = g.AssignScheduler(ctx, s, p)
 		require.Nil(t, err)
+
+		in, err := g.InstructionRepository.Find(ctx, i3.ID)
+		require.Nil(t, err)
+		result, err := in.InstructionResult(ctx)
+		require.Nil(t, err)
+		resultJSON, _ := json.Marshal(result)
+		require.Equal(t, q.Result, string(resultJSON))
 	}
 }

@@ -275,7 +275,7 @@ func parseSQLValueIntoRealType(value interface{}, columnType string) (interface{
 		if err != nil {
 			return nil, err
 		}
-		return cast.ToInt64E(s)
+		return cast.ToIntE(s)
 	} else if strings.Contains(t, "FLOAT") || strings.Contains(t, "DECIMAL") {
 		s, err := cast.ToStringE(value)
 		if err != nil {

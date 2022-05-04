@@ -196,20 +196,20 @@ func ExecuteInputInstruction(ctx context.Context, op Instruction, args ...Instru
 type collectionValues struct {
 	lists   []interface{}
 	strings [][]string
-	ints    [][]int64
+	ints    [][]int
 	floats  [][]float64
 }
 
 func getCollectionValues(list []interface{}) (collectionValues, bool) {
 	strings := [][]string{}
-	ints := [][]int64{}
+	ints := [][]int{}
 	floats := [][]float64{}
 
 	for _, v := range list {
 		switch v2 := v.(type) {
 		case []string:
 			strings = append(strings, v2)
-		case []int64:
+		case []int:
 			ints = append(ints, v2)
 		case []float64:
 			floats = append(floats, v2)
@@ -224,10 +224,10 @@ func getCollectionValues(list []interface{}) (collectionValues, bool) {
 					t = append(t, v3.(string))
 				}
 				strings = append(strings, t)
-			case int64:
-				t := make([]int64, 0, len(v2))
+			case int:
+				t := make([]int, 0, len(v2))
 				for _, v3 := range v2 {
-					t = append(t, v3.(int64))
+					t = append(t, v3.(int))
 				}
 				ints = append(ints, t)
 			case float64:
@@ -313,7 +313,7 @@ func ExecuteCollectionInstruction(ctx context.Context, op Instruction, args ...I
 	cv, ok := getCollectionValues(list)
 	if !ok {
 		return InstructionResult{},
-			errors.Errorf("Collection Operands only support []string/[]int64/[]float64, should be %d %T, strings %d ints %d floats %d",
+			errors.Errorf("Collection Operands only support []string/[]int/[]float64, should be %d %T, strings %d ints %d floats %d",
 				len(list), list[0], len(cv.strings), len(cv.ints), len(cv.floats))
 	}
 
@@ -323,7 +323,7 @@ func ExecuteCollectionInstruction(ctx context.Context, op Instruction, args ...I
 	}
 
 	return InstructionResult{},
-		errors.Errorf("Collection Operands only support []string/[]int64/[]float64, should be %d %T, %s %s",
+		errors.Errorf("Collection Operands only support []string/[]int/[]float64, should be %d %T, %s %s",
 			len(list), list[0], op.ID.String(), op.OpCode)
 }
 
@@ -371,7 +371,7 @@ func StringsIntersect(ll [][]string) []string {
 	return l
 }
 
-func IntsIntersect(ll [][]int64) []int64 {
+func IntsIntersect(ll [][]int) []int {
 	n := len(ll)
 	min := 0
 	for i := 1; i < n; i++ {
@@ -382,7 +382,7 @@ func IntsIntersect(ll [][]int64) []int64 {
 
 	c := ll[min]
 
-	f := make(map[int64]int)
+	f := make(map[int]int)
 	for _, v := range c {
 		f[v] = 0
 	}
@@ -396,7 +396,7 @@ func IntsIntersect(ll [][]int64) []int64 {
 		}
 	}
 
-	l := make([]int64, 0, len(c))
+	l := make([]int, 0, len(c))
 	for _, v := range c {
 		if f[v] == n {
 			l = append(l, v)
@@ -465,7 +465,7 @@ func StringsUnion(ll [][]string) []string {
 	return l
 }
 
-func IntsUnion(ll [][]int64) []int64 {
+func IntsUnion(ll [][]int) []int {
 	n := len(ll)
 	max := 0
 	for i := 1; i < n; i++ {
@@ -474,8 +474,8 @@ func IntsUnion(ll [][]int64) []int64 {
 		}
 	}
 
-	f := make(map[int64]bool)
-	l := make([]int64, 0, len(ll[max]))
+	f := make(map[int]bool)
+	l := make([]int, 0, len(ll[max]))
 
 	for _, v := range ll {
 		for _, v2 := range v {
@@ -547,15 +547,15 @@ func StringsDiff(ll [][]string) []string {
 	return l
 }
 
-func IntsDiff(ll [][]int64) []int64 {
+func IntsDiff(ll [][]int) []int {
 	n := len(ll)
 	if n == 0 {
-		return []int64{}
+		return []int{}
 	}
 
 	c := ll[0]
 
-	f := make(map[int64]bool)
+	f := make(map[int]bool)
 	for _, v := range c {
 		f[v] = true
 	}
@@ -571,7 +571,7 @@ func IntsDiff(ll [][]int64) []int64 {
 		}
 	}
 
-	l := make([]int64, 0, len(c))
+	l := make([]int, 0, len(c))
 	for _, v := range c {
 		if f[v] {
 			l = append(l, v)
