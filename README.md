@@ -22,6 +22,82 @@ Start gotlin server.
 $ gotlin start
 ```
 
+Start a compute node with a built-in instruction set.
+
+```
+$ gotlin --compute-node start
+```
+
+Design a compute node with a custom instruction set.
+
+```go
+func main() {
+	instructionSet := NewInstructionSet()
+	customInstructionHandler := InstructionHandler{
+		OpCode: OpCode("RETURN9527"),
+		Executor: func(context.Context, Instruction,
+			...Instruction) (InstructionResult, error) {
+			return NewRegisterResult(9527), nil
+		},
+	}
+	instructionSet.Register(customInstructionHandler)
+
+	c, _ := NewClient(WithClientInstructionSet(instructionSet))
+	c.RegisterExecutor(context.Background(), RegisterExecutorOption{
+		ID:     NewExecutorID(),
+		Labels: NewLabels(OpCodeLabelKey, "RETURN9527"),
+	})
+	_ = c.StartComputeNode(context.Background())
+}
+```
+
+Submit a task to the service node.
+
+```go
+func main() {
+	// Perform an arithmetic calculation "( 1 + 2 ) * 4", the expected result is 12
+	i1 := NewInstruction().ChangeImmediateValue(1)
+	i2 := NewInstruction().ChangeImmediateValue(2)
+	i3 := NewInstruction().ChangeToArithmetic(OpCodeAdd)
+	i4 := NewInstruction().ChangeImmediateValue(4)
+	i5 := NewInstruction().ChangeToArithmetic(OpCodeMul)
+	ins := []Instruction{i1, i2, i3, i4, i5}
+
+	p := NewProgram()
+	for _, in := range ins {
+		p = p.AddInstruction(in.ID)
+	}
+
+	d := NewInstructionDAG()
+	ids := []InstructionID{}
+	for _, v := range ins {
+		ids = append(ids, v.ID)
+	}
+	d.Add(ids...)
+	d.AttachChildren(i3.ID, i1.ID, i2.ID)
+	d.AttachChildren(i5.ID, i3.ID, i4.ID)
+
+	core := 8
+	p = p.ChangeProcessor(NewDAGProcessorContext(d, core))
+
+	c, _ := NewClient()
+	res, _ := c.RequestScheduler(context.Background(), RequestSchedulerOption{})
+	rp := RunProgramOption{SchedulerID: res.SchedulerID, Program: p, Instructions: ins}
+	c.RunProgram(context.Background(), rp)
+
+	resultCh, errCh := c.WaitResult(context.Background())
+	for {
+		select {
+		case res := <-resultCh:
+			fmt.Printf("Program: %s, result %v\n", res.ID, res.Result)
+		case err := <-errCh:
+			fmt.Printf("Error: %v\n", err)
+		}
+	}
+}
+```
+
+
 ## Architecture
 
 [![Gotlin Architecture Diagram](./images/gotlin_architecture_diagram.png)](./images/gotlin_architecture_diagram.png)

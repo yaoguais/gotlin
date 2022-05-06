@@ -16,7 +16,7 @@ type serverService struct {
 	g *Gotlin
 }
 
-func NewServerService(g *Gotlin) *serverService {
+func newServerService(g *Gotlin) *serverService {
 	return &serverService{g: g}
 }
 

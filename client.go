@@ -22,6 +22,12 @@ func WithClientGRPCOptions(options ...grpc.DialOption) ClientOption {
 	}
 }
 
+func WithClientInstructionSet(is *InstructionSet) ClientOption {
+	return func(c *Client) {
+		c.InstructionSet = is
+	}
+}
+
 type ClientCallOption struct {
 	GRPCOption []grpc.CallOption
 }
@@ -39,8 +45,9 @@ func (o ClientCallOptions) GRPCOption() []grpc.CallOption {
 }
 
 type Client struct {
-	GRPCOption    []grpc.DialOption
-	TargetAddress string
+	GRPCOption     []grpc.DialOption
+	TargetAddress  string
+	InstructionSet *InstructionSet
 
 	ctx context.Context
 	cc  *grpc.ClientConn
@@ -49,8 +56,9 @@ type Client struct {
 
 func NewClient(options ...ClientOption) (*Client, error) {
 	c := &Client{
-		TargetAddress: "127.0.0.1:9527",
-		ctx:           context.Background(),
+		TargetAddress:  "127.0.0.1:9527",
+		InstructionSet: NewInstructionSet(),
+		ctx:            context.Background(),
 	}
 
 	for _, o := range options {
@@ -67,18 +75,18 @@ func NewClient(options ...ClientOption) (*Client, error) {
 	return c, nil
 }
 
-type RegisterExecutorParams struct {
+type RegisterExecutorOption struct {
 	ID     ExecutorID
 	Host   Host
 	Labels Labels
 }
 
-type UnregisterExecutorParams struct {
+type UnregisterExecutorOption struct {
 	ID    ExecutorID
 	Error error
 }
 
-func (c *Client) RegisterExecutor(ctx context.Context, r RegisterExecutorParams, options ...ClientCallOption) error {
+func (c *Client) RegisterExecutor(ctx context.Context, r RegisterExecutorOption, options ...ClientCallOption) error {
 	req := &RegisterExecutorRequest{
 		Id:   r.ID.String(),
 		Host: r.Host.String(),
@@ -91,7 +99,7 @@ func (c *Client) RegisterExecutor(ctx context.Context, r RegisterExecutorParams,
 	return errors.Wrap(err, "Register Executor")
 }
 
-func (c *Client) UnregisterExecutor(ctx context.Context, r UnregisterExecutorParams, options ...ClientCallOption) error {
+func (c *Client) UnregisterExecutor(ctx context.Context, r UnregisterExecutorOption, options ...ClientCallOption) error {
 	var error string
 	if r.Error != nil {
 		error = r.Error.Error()
@@ -105,7 +113,11 @@ func (c *Client) UnregisterExecutor(ctx context.Context, r UnregisterExecutorPar
 	return errors.Wrap(err, "Unregister Executor")
 }
 
-func (c *Client) LoopCommands(ctx context.Context, options ...ClientCallOption) error {
+func (c *Client) StartComputeNode(ctx context.Context, options ...ClientCallOption) error {
+	return c.handleInstructions(ctx, options...)
+}
+
+func (c *Client) handleInstructions(ctx context.Context, options ...ClientCallOption) error {
 	calls := ClientCallOptions(options).GRPCOption()
 
 	stream, err := c.c.ExecuteCommand(ctx, calls...)
@@ -161,7 +173,7 @@ func (c *Client) LoopCommands(ctx context.Context, options ...ClientCallOption) 
 			op := ts[0]
 			args := ts[1:]
 
-			handler, err := NewInstructionSet().GetExecutorHandler(op.OpCode)
+			handler, err := c.InstructionSet.GetExecutorHandler(op.OpCode)
 			if err != nil {
 				return err
 			}
@@ -196,7 +208,42 @@ func (c *Client) LoopCommands(ctx context.Context, options ...ClientCallOption) 
 	}
 }
 
-func (c *Client) Close() error {
+type RequestSchedulerOption struct {
+}
+
+type RequestSchedulerResult struct {
+	SchedulerID SchedulerID
+}
+
+func (c *Client) RequestScheduler(ctx context.Context, r RequestSchedulerOption, options ...ClientCallOption) (RequestSchedulerResult, error) {
+	return RequestSchedulerResult{}, errors.New("Unimplemented")
+}
+
+type RunProgramOption struct {
+	SchedulerID  SchedulerID
+	Program      Program
+	Instructions []Instruction
+}
+
+type RunProgramResult struct {
+}
+
+func (c *Client) RunProgram(ctx context.Context, r RunProgramOption, options ...ClientCallOption) (RunProgramResult, error) {
+	return RunProgramResult{}, errors.New("Unimplemented")
+}
+
+type ProgramResult struct {
+	ID     ProgramID
+	Result InstructionResult
+}
+
+func (c *Client) WaitResult(ctx context.Context) (chan ProgramResult, chan error) {
+	errCh := make(chan error, 1)
+	errCh <- errors.New("Unimplemented")
+	return nil, errCh
+}
+
+func (c *Client) Shutdown() error {
 	if c.cc != nil {
 		err := c.cc.Close()
 		c.cc = nil

@@ -373,7 +373,7 @@ func TestGotlin_RemoteExecutorViaGRPC(t *testing.T) {
 	c, err := NewClient(WithClientGRPCOptions(grpc.WithInsecure()))
 	require.Nil(t, err)
 
-	params := RegisterExecutorParams{
+	params := RegisterExecutorOption{
 		ID:     NewExecutorID(),
 		Host:   "127.0.0.1:0",
 		Labels: (&ExecutorPool{}).getDefaultExecutor().Labels, // TODO fix it
@@ -382,7 +382,7 @@ func TestGotlin_RemoteExecutorViaGRPC(t *testing.T) {
 	require.Nil(t, err)
 
 	go func() {
-		err := c.LoopCommands(ctx)
+		err := c.StartComputeNode(ctx)
 		fmt.Printf("Loop commands, %v\n", err)
 	}()
 
