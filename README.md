@@ -28,30 +28,20 @@ Start a compute node with a built-in instruction set.
 $ gotlin --compute-node start
 ```
 
-Design a compute node with a custom instruction set.
+## Contents
 
-```go
-func main() {
-	instructionSet := NewInstructionSet()
-	customInstructionHandler := InstructionHandler{
-		OpCode: OpCode("RETURN9527"),
-		Executor: func(context.Context, Instruction,
-			...Instruction) (InstructionResult, error) {
-			return NewRegisterResult(9527), nil
-		},
-	}
-	instructionSet.Register(customInstructionHandler)
+- [Architecture](#architecture)
+- [Submit a task to the service node](#submit-a-task-to-the-service-node)
+- [Design a compute node with a custom instruction set](#design-a-compute-node-with-a-custom-instruction-set)
+- [Intersect the results of the query in the database](#intersect-the-results-of-the-query-in-the-database)
+- [License](#license)
 
-	c, _ := NewClient(WithClientInstructionSet(instructionSet))
-	c.RegisterExecutor(context.Background(), RegisterExecutorOption{
-		ID:     NewExecutorID(),
-		Labels: NewLabels(OpCodeLabelKey, "RETURN9527"),
-	})
-	_ = c.StartComputeNode(context.Background())
-}
-```
+## Architecture
 
-Submit a task to the service node.
+[![Gotlin Architecture Diagram](./images/gotlin_architecture_diagram.png)](./images/gotlin_architecture_diagram.png)
+
+
+## Submit a task to the service node
 
 ```go
 func main() {
@@ -97,12 +87,84 @@ func main() {
 }
 ```
 
+## Design a compute node with a custom instruction set
 
-## Architecture
+```go
+func main() {
+	instructionSet := NewInstructionSet()
+	customInstructionHandler := InstructionHandler{
+		OpCode: OpCode("RETURN9527"),
+		Executor: func(context.Context, op Instruction,
+			args ...Instruction) (InstructionResult, error) {
+			return NewRegisterResult(9527), nil
+		},
+	}
+	instructionSet.Register(customInstructionHandler)
 
-[![Gotlin Architecture Diagram](./images/gotlin_architecture_diagram.png)](./images/gotlin_architecture_diagram.png)
+	c, _ := NewClient(WithClientInstructionSet(instructionSet))
+	c.RegisterExecutor(context.Background(), RegisterExecutorOption{
+		ID:     NewExecutorID(),
+		Labels: NewLabels(OpCodeLabelKey, "RETURN9527"),
+	})
+	_ = c.StartComputeNode(context.Background())
+}
+```
 
-### License
+## Intersect the results of the query in the database
+
+```go
+func main() {
+	// Compute the intersection of collection ['C1','C3'] and ['C2','C3'], the desired result is ['C3']
+	// CREATE TABLE IF NOT EXISTS test_collections(
+	//   id int(10) PRIMARY KEY, name varchar(50) NOT NULL, score decimal(8,2) NOT NULL);
+	// INSERT INTO test_collections VALUES(1, 'C1', 0.2), (2, 'C2', 0.2);
+	// INSERT INTO test_collections VALUES(3, 'C3', 1.2), (4, 'C3', 2.4);
+	driver := "mysql"
+	dsn := "root:root@tcp(127.0.0.1:3306)/gotlin?charset=utf8mb4&parseTime=True&loc=Local"
+	query1 := "select name from test_collections where id IN (1, 3)"
+	query2 := "select name from test_collections where id IN (2, 4)"
+	converters := []QueryConverter{QueryConverterFlat}
+	d1 := NewDatabaseQuery(driver, dsn, query1, converters)
+	i1 := NewInstruction().ChangeDatabaseQuery(d1)
+	d2 := NewDatabaseQuery(driver, dsn, query2, converters)
+	i2 := NewInstruction().ChangeDatabaseQuery(d2)
+	i3 := NewInstruction().ChangeToArithmetic(OpCodeIntersect)
+	ins := []Instruction{i1, i2, i3}
+
+	p := NewProgram()
+	for _, in := range ins {
+		p = p.AddInstruction(in.ID)
+	}
+
+	d := NewInstructionDAG()
+	ids := []InstructionID{}
+	for _, v := range ins {
+		ids = append(ids, v.ID)
+	}
+	d.Add(ids...)
+	d.AttachChildren(i3.ID, i1.ID, i2.ID)
+
+	core := 8
+	p = p.ChangeProcessor(NewDAGProcessorContext(d, core))
+
+	c, _ := NewClient()
+	res, _ := c.RequestScheduler(context.Background(), RequestSchedulerOption{})
+	rp := RunProgramOption{SchedulerID: res.SchedulerID, Program: p, Instructions: ins}
+	c.RunProgram(context.Background(), rp)
+
+	resultCh, errCh := c.WaitResult(context.Background())
+	for {
+		select {
+		case res := <-resultCh:
+			fmt.Printf("Program: %s, result %v\n", res.ID, res.Result)
+		case err := <-errCh:
+			fmt.Printf("Error: %v\n", err)
+		}
+	}
+}
+```
+
+## License
 
     Copyright 2013 Mir Ikram Uddin
 
