@@ -269,7 +269,7 @@ func (*UnregisterExecutorResponse) Descriptor() ([]byte, []int) {
 	return file_gotlin_proto_rawDescGZIP(), []int{3}
 }
 
-type CommandFromClient struct {
+type CommandFromRemote struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
@@ -277,11 +277,11 @@ type CommandFromClient struct {
 	Id                 string                                `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	Type               CommandType                           `protobuf:"varint,2,opt,name=type,proto3,enum=gotlin.CommandType" json:"type,omitempty"`
 	Spent              int64                                 `protobuf:"varint,3,opt,name=spent,proto3" json:"spent,omitempty"`
-	ExecuteInstruction *CommandFromClient_ExecuteInstruction `protobuf:"bytes,4,opt,name=execute_instruction,json=executeInstruction,proto3" json:"execute_instruction,omitempty"`
+	ExecuteInstruction *CommandFromRemote_ExecuteInstruction `protobuf:"bytes,4,opt,name=execute_instruction,json=executeInstruction,proto3" json:"execute_instruction,omitempty"`
 }
 
-func (x *CommandFromClient) Reset() {
-	*x = CommandFromClient{}
+func (x *CommandFromRemote) Reset() {
+	*x = CommandFromRemote{}
 	if protoimpl.UnsafeEnabled {
 		mi := &file_gotlin_proto_msgTypes[4]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -289,13 +289,13 @@ func (x *CommandFromClient) Reset() {
 	}
 }
 
-func (x *CommandFromClient) String() string {
+func (x *CommandFromRemote) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*CommandFromClient) ProtoMessage() {}
+func (*CommandFromRemote) ProtoMessage() {}
 
-func (x *CommandFromClient) ProtoReflect() protoreflect.Message {
+func (x *CommandFromRemote) ProtoReflect() protoreflect.Message {
 	mi := &file_gotlin_proto_msgTypes[4]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -307,40 +307,40 @@ func (x *CommandFromClient) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CommandFromClient.ProtoReflect.Descriptor instead.
-func (*CommandFromClient) Descriptor() ([]byte, []int) {
+// Deprecated: Use CommandFromRemote.ProtoReflect.Descriptor instead.
+func (*CommandFromRemote) Descriptor() ([]byte, []int) {
 	return file_gotlin_proto_rawDescGZIP(), []int{4}
 }
 
-func (x *CommandFromClient) GetId() string {
+func (x *CommandFromRemote) GetId() string {
 	if x != nil {
 		return x.Id
 	}
 	return ""
 }
 
-func (x *CommandFromClient) GetType() CommandType {
+func (x *CommandFromRemote) GetType() CommandType {
 	if x != nil {
 		return x.Type
 	}
 	return CommandType_Unknown
 }
 
-func (x *CommandFromClient) GetSpent() int64 {
+func (x *CommandFromRemote) GetSpent() int64 {
 	if x != nil {
 		return x.Spent
 	}
 	return 0
 }
 
-func (x *CommandFromClient) GetExecuteInstruction() *CommandFromClient_ExecuteInstruction {
+func (x *CommandFromRemote) GetExecuteInstruction() *CommandFromRemote_ExecuteInstruction {
 	if x != nil {
 		return x.ExecuteInstruction
 	}
 	return nil
 }
 
-type CommandToClient struct {
+type CommandToRemote struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
@@ -349,11 +349,11 @@ type CommandToClient struct {
 	Type               CommandType                         `protobuf:"varint,2,opt,name=type,proto3,enum=gotlin.CommandType" json:"type,omitempty"`
 	Timeout            int64                               `protobuf:"varint,3,opt,name=timeout,proto3" json:"timeout,omitempty"`
 	Error              string                              `protobuf:"bytes,4,opt,name=error,proto3" json:"error,omitempty"`
-	ExecuteInstruction *CommandToClient_ExecuteInstruction `protobuf:"bytes,5,opt,name=execute_instruction,json=executeInstruction,proto3" json:"execute_instruction,omitempty"`
+	ExecuteInstruction *CommandToRemote_ExecuteInstruction `protobuf:"bytes,5,opt,name=execute_instruction,json=executeInstruction,proto3" json:"execute_instruction,omitempty"`
 }
 
-func (x *CommandToClient) Reset() {
-	*x = CommandToClient{}
+func (x *CommandToRemote) Reset() {
+	*x = CommandToRemote{}
 	if protoimpl.UnsafeEnabled {
 		mi := &file_gotlin_proto_msgTypes[5]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -361,13 +361,13 @@ func (x *CommandToClient) Reset() {
 	}
 }
 
-func (x *CommandToClient) String() string {
+func (x *CommandToRemote) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*CommandToClient) ProtoMessage() {}
+func (*CommandToRemote) ProtoMessage() {}
 
-func (x *CommandToClient) ProtoReflect() protoreflect.Message {
+func (x *CommandToRemote) ProtoReflect() protoreflect.Message {
 	mi := &file_gotlin_proto_msgTypes[5]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -379,44 +379,281 @@ func (x *CommandToClient) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CommandToClient.ProtoReflect.Descriptor instead.
-func (*CommandToClient) Descriptor() ([]byte, []int) {
+// Deprecated: Use CommandToRemote.ProtoReflect.Descriptor instead.
+func (*CommandToRemote) Descriptor() ([]byte, []int) {
 	return file_gotlin_proto_rawDescGZIP(), []int{5}
 }
 
-func (x *CommandToClient) GetId() string {
+func (x *CommandToRemote) GetId() string {
 	if x != nil {
 		return x.Id
 	}
 	return ""
 }
 
-func (x *CommandToClient) GetType() CommandType {
+func (x *CommandToRemote) GetType() CommandType {
 	if x != nil {
 		return x.Type
 	}
 	return CommandType_Unknown
 }
 
-func (x *CommandToClient) GetTimeout() int64 {
+func (x *CommandToRemote) GetTimeout() int64 {
 	if x != nil {
 		return x.Timeout
 	}
 	return 0
 }
 
-func (x *CommandToClient) GetError() string {
+func (x *CommandToRemote) GetError() string {
 	if x != nil {
 		return x.Error
 	}
 	return ""
 }
 
-func (x *CommandToClient) GetExecuteInstruction() *CommandToClient_ExecuteInstruction {
+func (x *CommandToRemote) GetExecuteInstruction() *CommandToRemote_ExecuteInstruction {
 	if x != nil {
 		return x.ExecuteInstruction
 	}
 	return nil
+}
+
+type RequestSchedulerRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+}
+
+func (x *RequestSchedulerRequest) Reset() {
+	*x = RequestSchedulerRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_gotlin_proto_msgTypes[6]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *RequestSchedulerRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RequestSchedulerRequest) ProtoMessage() {}
+
+func (x *RequestSchedulerRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_gotlin_proto_msgTypes[6]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RequestSchedulerRequest.ProtoReflect.Descriptor instead.
+func (*RequestSchedulerRequest) Descriptor() ([]byte, []int) {
+	return file_gotlin_proto_rawDescGZIP(), []int{6}
+}
+
+type RequestSchedulerResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+}
+
+func (x *RequestSchedulerResponse) Reset() {
+	*x = RequestSchedulerResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_gotlin_proto_msgTypes[7]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *RequestSchedulerResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RequestSchedulerResponse) ProtoMessage() {}
+
+func (x *RequestSchedulerResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_gotlin_proto_msgTypes[7]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RequestSchedulerResponse.ProtoReflect.Descriptor instead.
+func (*RequestSchedulerResponse) Descriptor() ([]byte, []int) {
+	return file_gotlin_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *RequestSchedulerResponse) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+type RunProgramRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+}
+
+func (x *RunProgramRequest) Reset() {
+	*x = RunProgramRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_gotlin_proto_msgTypes[8]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *RunProgramRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RunProgramRequest) ProtoMessage() {}
+
+func (x *RunProgramRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_gotlin_proto_msgTypes[8]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RunProgramRequest.ProtoReflect.Descriptor instead.
+func (*RunProgramRequest) Descriptor() ([]byte, []int) {
+	return file_gotlin_proto_rawDescGZIP(), []int{8}
+}
+
+type RunProgramResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+}
+
+func (x *RunProgramResponse) Reset() {
+	*x = RunProgramResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_gotlin_proto_msgTypes[9]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *RunProgramResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RunProgramResponse) ProtoMessage() {}
+
+func (x *RunProgramResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_gotlin_proto_msgTypes[9]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RunProgramResponse.ProtoReflect.Descriptor instead.
+func (*RunProgramResponse) Descriptor() ([]byte, []int) {
+	return file_gotlin_proto_rawDescGZIP(), []int{9}
+}
+
+type WaitResultRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+}
+
+func (x *WaitResultRequest) Reset() {
+	*x = WaitResultRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_gotlin_proto_msgTypes[10]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *WaitResultRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WaitResultRequest) ProtoMessage() {}
+
+func (x *WaitResultRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_gotlin_proto_msgTypes[10]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WaitResultRequest.ProtoReflect.Descriptor instead.
+func (*WaitResultRequest) Descriptor() ([]byte, []int) {
+	return file_gotlin_proto_rawDescGZIP(), []int{10}
+}
+
+type WaitResultResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+}
+
+func (x *WaitResultResponse) Reset() {
+	*x = WaitResultResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_gotlin_proto_msgTypes[11]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *WaitResultResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WaitResultResponse) ProtoMessage() {}
+
+func (x *WaitResultResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_gotlin_proto_msgTypes[11]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WaitResultResponse.ProtoReflect.Descriptor instead.
+func (*WaitResultResponse) Descriptor() ([]byte, []int) {
+	return file_gotlin_proto_rawDescGZIP(), []int{11}
 }
 
 type RegisterExecutorRequest_Label struct {
@@ -431,7 +668,7 @@ type RegisterExecutorRequest_Label struct {
 func (x *RegisterExecutorRequest_Label) Reset() {
 	*x = RegisterExecutorRequest_Label{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_gotlin_proto_msgTypes[6]
+		mi := &file_gotlin_proto_msgTypes[12]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -444,7 +681,7 @@ func (x *RegisterExecutorRequest_Label) String() string {
 func (*RegisterExecutorRequest_Label) ProtoMessage() {}
 
 func (x *RegisterExecutorRequest_Label) ProtoReflect() protoreflect.Message {
-	mi := &file_gotlin_proto_msgTypes[6]
+	mi := &file_gotlin_proto_msgTypes[12]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -474,7 +711,7 @@ func (x *RegisterExecutorRequest_Label) GetValue() string {
 	return ""
 }
 
-type CommandFromClient_ExecuteInstruction struct {
+type CommandFromRemote_ExecuteInstruction struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
@@ -484,23 +721,23 @@ type CommandFromClient_ExecuteInstruction struct {
 	Result []byte `protobuf:"bytes,3,opt,name=result,proto3" json:"result,omitempty"`
 }
 
-func (x *CommandFromClient_ExecuteInstruction) Reset() {
-	*x = CommandFromClient_ExecuteInstruction{}
+func (x *CommandFromRemote_ExecuteInstruction) Reset() {
+	*x = CommandFromRemote_ExecuteInstruction{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_gotlin_proto_msgTypes[7]
+		mi := &file_gotlin_proto_msgTypes[13]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
 }
 
-func (x *CommandFromClient_ExecuteInstruction) String() string {
+func (x *CommandFromRemote_ExecuteInstruction) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*CommandFromClient_ExecuteInstruction) ProtoMessage() {}
+func (*CommandFromRemote_ExecuteInstruction) ProtoMessage() {}
 
-func (x *CommandFromClient_ExecuteInstruction) ProtoReflect() protoreflect.Message {
-	mi := &file_gotlin_proto_msgTypes[7]
+func (x *CommandFromRemote_ExecuteInstruction) ProtoReflect() protoreflect.Message {
+	mi := &file_gotlin_proto_msgTypes[13]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -511,33 +748,33 @@ func (x *CommandFromClient_ExecuteInstruction) ProtoReflect() protoreflect.Messa
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CommandFromClient_ExecuteInstruction.ProtoReflect.Descriptor instead.
-func (*CommandFromClient_ExecuteInstruction) Descriptor() ([]byte, []int) {
+// Deprecated: Use CommandFromRemote_ExecuteInstruction.ProtoReflect.Descriptor instead.
+func (*CommandFromRemote_ExecuteInstruction) Descriptor() ([]byte, []int) {
 	return file_gotlin_proto_rawDescGZIP(), []int{4, 0}
 }
 
-func (x *CommandFromClient_ExecuteInstruction) GetId() string {
+func (x *CommandFromRemote_ExecuteInstruction) GetId() string {
 	if x != nil {
 		return x.Id
 	}
 	return ""
 }
 
-func (x *CommandFromClient_ExecuteInstruction) GetOpcode() string {
+func (x *CommandFromRemote_ExecuteInstruction) GetOpcode() string {
 	if x != nil {
 		return x.Opcode
 	}
 	return ""
 }
 
-func (x *CommandFromClient_ExecuteInstruction) GetResult() []byte {
+func (x *CommandFromRemote_ExecuteInstruction) GetResult() []byte {
 	if x != nil {
 		return x.Result
 	}
 	return nil
 }
 
-type CommandToClient_Instruction struct {
+type CommandToRemote_Instruction struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
@@ -548,23 +785,23 @@ type CommandToClient_Instruction struct {
 	Result  []byte `protobuf:"bytes,4,opt,name=result,proto3" json:"result,omitempty"`
 }
 
-func (x *CommandToClient_Instruction) Reset() {
-	*x = CommandToClient_Instruction{}
+func (x *CommandToRemote_Instruction) Reset() {
+	*x = CommandToRemote_Instruction{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_gotlin_proto_msgTypes[8]
+		mi := &file_gotlin_proto_msgTypes[14]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
 }
 
-func (x *CommandToClient_Instruction) String() string {
+func (x *CommandToRemote_Instruction) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*CommandToClient_Instruction) ProtoMessage() {}
+func (*CommandToRemote_Instruction) ProtoMessage() {}
 
-func (x *CommandToClient_Instruction) ProtoReflect() protoreflect.Message {
-	mi := &file_gotlin_proto_msgTypes[8]
+func (x *CommandToRemote_Instruction) ProtoReflect() protoreflect.Message {
+	mi := &file_gotlin_proto_msgTypes[14]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -575,65 +812,65 @@ func (x *CommandToClient_Instruction) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CommandToClient_Instruction.ProtoReflect.Descriptor instead.
-func (*CommandToClient_Instruction) Descriptor() ([]byte, []int) {
+// Deprecated: Use CommandToRemote_Instruction.ProtoReflect.Descriptor instead.
+func (*CommandToRemote_Instruction) Descriptor() ([]byte, []int) {
 	return file_gotlin_proto_rawDescGZIP(), []int{5, 0}
 }
 
-func (x *CommandToClient_Instruction) GetId() string {
+func (x *CommandToRemote_Instruction) GetId() string {
 	if x != nil {
 		return x.Id
 	}
 	return ""
 }
 
-func (x *CommandToClient_Instruction) GetOpcode() string {
+func (x *CommandToRemote_Instruction) GetOpcode() string {
 	if x != nil {
 		return x.Opcode
 	}
 	return ""
 }
 
-func (x *CommandToClient_Instruction) GetOperand() []byte {
+func (x *CommandToRemote_Instruction) GetOperand() []byte {
 	if x != nil {
 		return x.Operand
 	}
 	return nil
 }
 
-func (x *CommandToClient_Instruction) GetResult() []byte {
+func (x *CommandToRemote_Instruction) GetResult() []byte {
 	if x != nil {
 		return x.Result
 	}
 	return nil
 }
 
-type CommandToClient_ExecuteInstruction struct {
+type CommandToRemote_ExecuteInstruction struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Op   *CommandToClient_Instruction   `protobuf:"bytes,1,opt,name=op,proto3" json:"op,omitempty"`
-	Args []*CommandToClient_Instruction `protobuf:"bytes,2,rep,name=args,proto3" json:"args,omitempty"`
+	Op   *CommandToRemote_Instruction   `protobuf:"bytes,1,opt,name=op,proto3" json:"op,omitempty"`
+	Args []*CommandToRemote_Instruction `protobuf:"bytes,2,rep,name=args,proto3" json:"args,omitempty"`
 }
 
-func (x *CommandToClient_ExecuteInstruction) Reset() {
-	*x = CommandToClient_ExecuteInstruction{}
+func (x *CommandToRemote_ExecuteInstruction) Reset() {
+	*x = CommandToRemote_ExecuteInstruction{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_gotlin_proto_msgTypes[9]
+		mi := &file_gotlin_proto_msgTypes[15]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
 }
 
-func (x *CommandToClient_ExecuteInstruction) String() string {
+func (x *CommandToRemote_ExecuteInstruction) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*CommandToClient_ExecuteInstruction) ProtoMessage() {}
+func (*CommandToRemote_ExecuteInstruction) ProtoMessage() {}
 
-func (x *CommandToClient_ExecuteInstruction) ProtoReflect() protoreflect.Message {
-	mi := &file_gotlin_proto_msgTypes[9]
+func (x *CommandToRemote_ExecuteInstruction) ProtoReflect() protoreflect.Message {
+	mi := &file_gotlin_proto_msgTypes[15]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -644,19 +881,19 @@ func (x *CommandToClient_ExecuteInstruction) ProtoReflect() protoreflect.Message
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CommandToClient_ExecuteInstruction.ProtoReflect.Descriptor instead.
-func (*CommandToClient_ExecuteInstruction) Descriptor() ([]byte, []int) {
+// Deprecated: Use CommandToRemote_ExecuteInstruction.ProtoReflect.Descriptor instead.
+func (*CommandToRemote_ExecuteInstruction) Descriptor() ([]byte, []int) {
 	return file_gotlin_proto_rawDescGZIP(), []int{5, 1}
 }
 
-func (x *CommandToClient_ExecuteInstruction) GetOp() *CommandToClient_Instruction {
+func (x *CommandToRemote_ExecuteInstruction) GetOp() *CommandToRemote_Instruction {
 	if x != nil {
 		return x.Op
 	}
 	return nil
 }
 
-func (x *CommandToClient_ExecuteInstruction) GetArgs() []*CommandToClient_Instruction {
+func (x *CommandToRemote_ExecuteInstruction) GetArgs() []*CommandToRemote_Instruction {
 	if x != nil {
 		return x.Args
 	}
@@ -687,7 +924,7 @@ var file_gotlin_proto_rawDesc = []byte{
 	0x65, 0x72, 0x72, 0x6f, 0x72, 0x22, 0x1c, 0x0a, 0x1a, 0x55, 0x6e, 0x72, 0x65, 0x67, 0x69, 0x73,
 	0x74, 0x65, 0x72, 0x45, 0x78, 0x65, 0x63, 0x75, 0x74, 0x6f, 0x72, 0x52, 0x65, 0x73, 0x70, 0x6f,
 	0x6e, 0x73, 0x65, 0x22, 0x97, 0x02, 0x0a, 0x11, 0x43, 0x6f, 0x6d, 0x6d, 0x61, 0x6e, 0x64, 0x46,
-	0x72, 0x6f, 0x6d, 0x43, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x12, 0x0e, 0x0a, 0x02, 0x69, 0x64, 0x18,
+	0x72, 0x6f, 0x6d, 0x52, 0x65, 0x6d, 0x6f, 0x74, 0x65, 0x12, 0x0e, 0x0a, 0x02, 0x69, 0x64, 0x18,
 	0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x02, 0x69, 0x64, 0x12, 0x27, 0x0a, 0x04, 0x74, 0x79, 0x70,
 	0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0e, 0x32, 0x13, 0x2e, 0x67, 0x6f, 0x74, 0x6c, 0x69, 0x6e,
 	0x2e, 0x43, 0x6f, 0x6d, 0x6d, 0x61, 0x6e, 0x64, 0x54, 0x79, 0x70, 0x65, 0x52, 0x04, 0x74, 0x79,
@@ -695,7 +932,7 @@ var file_gotlin_proto_rawDesc = []byte{
 	0x03, 0x52, 0x05, 0x73, 0x70, 0x65, 0x6e, 0x74, 0x12, 0x5d, 0x0a, 0x13, 0x65, 0x78, 0x65, 0x63,
 	0x75, 0x74, 0x65, 0x5f, 0x69, 0x6e, 0x73, 0x74, 0x72, 0x75, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x18,
 	0x04, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x2c, 0x2e, 0x67, 0x6f, 0x74, 0x6c, 0x69, 0x6e, 0x2e, 0x43,
-	0x6f, 0x6d, 0x6d, 0x61, 0x6e, 0x64, 0x46, 0x72, 0x6f, 0x6d, 0x43, 0x6c, 0x69, 0x65, 0x6e, 0x74,
+	0x6f, 0x6d, 0x6d, 0x61, 0x6e, 0x64, 0x46, 0x72, 0x6f, 0x6d, 0x52, 0x65, 0x6d, 0x6f, 0x74, 0x65,
 	0x2e, 0x45, 0x78, 0x65, 0x63, 0x75, 0x74, 0x65, 0x49, 0x6e, 0x73, 0x74, 0x72, 0x75, 0x63, 0x74,
 	0x69, 0x6f, 0x6e, 0x52, 0x12, 0x65, 0x78, 0x65, 0x63, 0x75, 0x74, 0x65, 0x49, 0x6e, 0x73, 0x74,
 	0x72, 0x75, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x1a, 0x54, 0x0a, 0x12, 0x45, 0x78, 0x65, 0x63, 0x75,
@@ -704,8 +941,8 @@ var file_gotlin_proto_rawDesc = []byte{
 	0x06, 0x6f, 0x70, 0x63, 0x6f, 0x64, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x6f,
 	0x70, 0x63, 0x6f, 0x64, 0x65, 0x12, 0x16, 0x0a, 0x06, 0x72, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x18,
 	0x03, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x06, 0x72, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x22, 0xc5, 0x03,
-	0x0a, 0x0f, 0x43, 0x6f, 0x6d, 0x6d, 0x61, 0x6e, 0x64, 0x54, 0x6f, 0x43, 0x6c, 0x69, 0x65, 0x6e,
-	0x74, 0x12, 0x0e, 0x0a, 0x02, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x02, 0x69,
+	0x0a, 0x0f, 0x43, 0x6f, 0x6d, 0x6d, 0x61, 0x6e, 0x64, 0x54, 0x6f, 0x52, 0x65, 0x6d, 0x6f, 0x74,
+	0x65, 0x12, 0x0e, 0x0a, 0x02, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x02, 0x69,
 	0x64, 0x12, 0x27, 0x0a, 0x04, 0x74, 0x79, 0x70, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0e, 0x32,
 	0x13, 0x2e, 0x67, 0x6f, 0x74, 0x6c, 0x69, 0x6e, 0x2e, 0x43, 0x6f, 0x6d, 0x6d, 0x61, 0x6e, 0x64,
 	0x54, 0x79, 0x70, 0x65, 0x52, 0x04, 0x74, 0x79, 0x70, 0x65, 0x12, 0x18, 0x0a, 0x07, 0x74, 0x69,
@@ -714,7 +951,7 @@ var file_gotlin_proto_rawDesc = []byte{
 	0x01, 0x28, 0x09, 0x52, 0x05, 0x65, 0x72, 0x72, 0x6f, 0x72, 0x12, 0x5b, 0x0a, 0x13, 0x65, 0x78,
 	0x65, 0x63, 0x75, 0x74, 0x65, 0x5f, 0x69, 0x6e, 0x73, 0x74, 0x72, 0x75, 0x63, 0x74, 0x69, 0x6f,
 	0x6e, 0x18, 0x05, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x2a, 0x2e, 0x67, 0x6f, 0x74, 0x6c, 0x69, 0x6e,
-	0x2e, 0x43, 0x6f, 0x6d, 0x6d, 0x61, 0x6e, 0x64, 0x54, 0x6f, 0x43, 0x6c, 0x69, 0x65, 0x6e, 0x74,
+	0x2e, 0x43, 0x6f, 0x6d, 0x6d, 0x61, 0x6e, 0x64, 0x54, 0x6f, 0x52, 0x65, 0x6d, 0x6f, 0x74, 0x65,
 	0x2e, 0x45, 0x78, 0x65, 0x63, 0x75, 0x74, 0x65, 0x49, 0x6e, 0x73, 0x74, 0x72, 0x75, 0x63, 0x74,
 	0x69, 0x6f, 0x6e, 0x52, 0x12, 0x65, 0x78, 0x65, 0x63, 0x75, 0x74, 0x65, 0x49, 0x6e, 0x73, 0x74,
 	0x72, 0x75, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x1a, 0x67, 0x0a, 0x0b, 0x49, 0x6e, 0x73, 0x74, 0x72,
@@ -727,37 +964,62 @@ var file_gotlin_proto_rawDesc = []byte{
 	0x1a, 0x82, 0x01, 0x0a, 0x12, 0x45, 0x78, 0x65, 0x63, 0x75, 0x74, 0x65, 0x49, 0x6e, 0x73, 0x74,
 	0x72, 0x75, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x12, 0x33, 0x0a, 0x02, 0x6f, 0x70, 0x18, 0x01, 0x20,
 	0x01, 0x28, 0x0b, 0x32, 0x23, 0x2e, 0x67, 0x6f, 0x74, 0x6c, 0x69, 0x6e, 0x2e, 0x43, 0x6f, 0x6d,
-	0x6d, 0x61, 0x6e, 0x64, 0x54, 0x6f, 0x43, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x2e, 0x49, 0x6e, 0x73,
+	0x6d, 0x61, 0x6e, 0x64, 0x54, 0x6f, 0x52, 0x65, 0x6d, 0x6f, 0x74, 0x65, 0x2e, 0x49, 0x6e, 0x73,
 	0x74, 0x72, 0x75, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x52, 0x02, 0x6f, 0x70, 0x12, 0x37, 0x0a, 0x04,
 	0x61, 0x72, 0x67, 0x73, 0x18, 0x02, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x23, 0x2e, 0x67, 0x6f, 0x74,
-	0x6c, 0x69, 0x6e, 0x2e, 0x43, 0x6f, 0x6d, 0x6d, 0x61, 0x6e, 0x64, 0x54, 0x6f, 0x43, 0x6c, 0x69,
-	0x65, 0x6e, 0x74, 0x2e, 0x49, 0x6e, 0x73, 0x74, 0x72, 0x75, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x52,
-	0x04, 0x61, 0x72, 0x67, 0x73, 0x2a, 0x5b, 0x0a, 0x0b, 0x43, 0x6f, 0x6d, 0x6d, 0x61, 0x6e, 0x64,
-	0x54, 0x79, 0x70, 0x65, 0x12, 0x0b, 0x0a, 0x07, 0x55, 0x6e, 0x6b, 0x6e, 0x6f, 0x77, 0x6e, 0x10,
-	0x00, 0x12, 0x13, 0x0a, 0x0f, 0x43, 0x6f, 0x6e, 0x6e, 0x65, 0x63, 0x74, 0x54, 0x6f, 0x53, 0x65,
-	0x72, 0x76, 0x65, 0x72, 0x10, 0x01, 0x12, 0x08, 0x0a, 0x04, 0x50, 0x69, 0x6e, 0x67, 0x10, 0x02,
-	0x12, 0x08, 0x0a, 0x04, 0x50, 0x6f, 0x6e, 0x67, 0x10, 0x03, 0x12, 0x16, 0x0a, 0x12, 0x45, 0x78,
-	0x65, 0x63, 0x75, 0x74, 0x65, 0x49, 0x6e, 0x73, 0x74, 0x72, 0x75, 0x63, 0x74, 0x69, 0x6f, 0x6e,
-	0x10, 0x04, 0x32, 0x93, 0x02, 0x0a, 0x0d, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x53, 0x65, 0x72,
-	0x76, 0x69, 0x63, 0x65, 0x12, 0x57, 0x0a, 0x10, 0x52, 0x65, 0x67, 0x69, 0x73, 0x74, 0x65, 0x72,
-	0x45, 0x78, 0x65, 0x63, 0x75, 0x74, 0x6f, 0x72, 0x12, 0x1f, 0x2e, 0x67, 0x6f, 0x74, 0x6c, 0x69,
-	0x6e, 0x2e, 0x52, 0x65, 0x67, 0x69, 0x73, 0x74, 0x65, 0x72, 0x45, 0x78, 0x65, 0x63, 0x75, 0x74,
-	0x6f, 0x72, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x20, 0x2e, 0x67, 0x6f, 0x74, 0x6c,
-	0x69, 0x6e, 0x2e, 0x52, 0x65, 0x67, 0x69, 0x73, 0x74, 0x65, 0x72, 0x45, 0x78, 0x65, 0x63, 0x75,
-	0x74, 0x6f, 0x72, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x00, 0x12, 0x5d, 0x0a,
-	0x12, 0x55, 0x6e, 0x72, 0x65, 0x67, 0x69, 0x73, 0x74, 0x65, 0x72, 0x45, 0x78, 0x65, 0x63, 0x75,
-	0x74, 0x6f, 0x72, 0x12, 0x21, 0x2e, 0x67, 0x6f, 0x74, 0x6c, 0x69, 0x6e, 0x2e, 0x55, 0x6e, 0x72,
+	0x6c, 0x69, 0x6e, 0x2e, 0x43, 0x6f, 0x6d, 0x6d, 0x61, 0x6e, 0x64, 0x54, 0x6f, 0x52, 0x65, 0x6d,
+	0x6f, 0x74, 0x65, 0x2e, 0x49, 0x6e, 0x73, 0x74, 0x72, 0x75, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x52,
+	0x04, 0x61, 0x72, 0x67, 0x73, 0x22, 0x19, 0x0a, 0x17, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
+	0x53, 0x63, 0x68, 0x65, 0x64, 0x75, 0x6c, 0x65, 0x72, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
+	0x22, 0x2a, 0x0a, 0x18, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x53, 0x63, 0x68, 0x65, 0x64,
+	0x75, 0x6c, 0x65, 0x72, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x0e, 0x0a, 0x02,
+	0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x02, 0x69, 0x64, 0x22, 0x13, 0x0a, 0x11,
+	0x52, 0x75, 0x6e, 0x50, 0x72, 0x6f, 0x67, 0x72, 0x61, 0x6d, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73,
+	0x74, 0x22, 0x14, 0x0a, 0x12, 0x52, 0x75, 0x6e, 0x50, 0x72, 0x6f, 0x67, 0x72, 0x61, 0x6d, 0x52,
+	0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x13, 0x0a, 0x11, 0x57, 0x61, 0x69, 0x74, 0x52,
+	0x65, 0x73, 0x75, 0x6c, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x22, 0x14, 0x0a, 0x12,
+	0x57, 0x61, 0x69, 0x74, 0x52, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e,
+	0x73, 0x65, 0x2a, 0x5b, 0x0a, 0x0b, 0x43, 0x6f, 0x6d, 0x6d, 0x61, 0x6e, 0x64, 0x54, 0x79, 0x70,
+	0x65, 0x12, 0x0b, 0x0a, 0x07, 0x55, 0x6e, 0x6b, 0x6e, 0x6f, 0x77, 0x6e, 0x10, 0x00, 0x12, 0x13,
+	0x0a, 0x0f, 0x43, 0x6f, 0x6e, 0x6e, 0x65, 0x63, 0x74, 0x54, 0x6f, 0x53, 0x65, 0x72, 0x76, 0x65,
+	0x72, 0x10, 0x01, 0x12, 0x08, 0x0a, 0x04, 0x50, 0x69, 0x6e, 0x67, 0x10, 0x02, 0x12, 0x08, 0x0a,
+	0x04, 0x50, 0x6f, 0x6e, 0x67, 0x10, 0x03, 0x12, 0x16, 0x0a, 0x12, 0x45, 0x78, 0x65, 0x63, 0x75,
+	0x74, 0x65, 0x49, 0x6e, 0x73, 0x74, 0x72, 0x75, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x10, 0x04, 0x32,
+	0xfc, 0x03, 0x0a, 0x0d, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63,
+	0x65, 0x12, 0x57, 0x0a, 0x10, 0x52, 0x65, 0x67, 0x69, 0x73, 0x74, 0x65, 0x72, 0x45, 0x78, 0x65,
+	0x63, 0x75, 0x74, 0x6f, 0x72, 0x12, 0x1f, 0x2e, 0x67, 0x6f, 0x74, 0x6c, 0x69, 0x6e, 0x2e, 0x52,
 	0x65, 0x67, 0x69, 0x73, 0x74, 0x65, 0x72, 0x45, 0x78, 0x65, 0x63, 0x75, 0x74, 0x6f, 0x72, 0x52,
-	0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x22, 0x2e, 0x67, 0x6f, 0x74, 0x6c, 0x69, 0x6e, 0x2e,
-	0x55, 0x6e, 0x72, 0x65, 0x67, 0x69, 0x73, 0x74, 0x65, 0x72, 0x45, 0x78, 0x65, 0x63, 0x75, 0x74,
-	0x6f, 0x72, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x00, 0x12, 0x4a, 0x0a, 0x0e,
-	0x45, 0x78, 0x65, 0x63, 0x75, 0x74, 0x65, 0x43, 0x6f, 0x6d, 0x6d, 0x61, 0x6e, 0x64, 0x12, 0x19,
-	0x2e, 0x67, 0x6f, 0x74, 0x6c, 0x69, 0x6e, 0x2e, 0x43, 0x6f, 0x6d, 0x6d, 0x61, 0x6e, 0x64, 0x46,
-	0x72, 0x6f, 0x6d, 0x43, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x1a, 0x17, 0x2e, 0x67, 0x6f, 0x74, 0x6c,
-	0x69, 0x6e, 0x2e, 0x43, 0x6f, 0x6d, 0x6d, 0x61, 0x6e, 0x64, 0x54, 0x6f, 0x43, 0x6c, 0x69, 0x65,
-	0x6e, 0x74, 0x22, 0x00, 0x28, 0x01, 0x30, 0x01, 0x42, 0x1c, 0x5a, 0x1a, 0x67, 0x69, 0x74, 0x68,
-	0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x79, 0x61, 0x6f, 0x67, 0x75, 0x61, 0x69, 0x73, 0x2f,
-	0x67, 0x6f, 0x74, 0x6c, 0x69, 0x6e, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x20, 0x2e, 0x67, 0x6f, 0x74, 0x6c, 0x69, 0x6e, 0x2e,
+	0x52, 0x65, 0x67, 0x69, 0x73, 0x74, 0x65, 0x72, 0x45, 0x78, 0x65, 0x63, 0x75, 0x74, 0x6f, 0x72,
+	0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x00, 0x12, 0x5d, 0x0a, 0x12, 0x55, 0x6e,
+	0x72, 0x65, 0x67, 0x69, 0x73, 0x74, 0x65, 0x72, 0x45, 0x78, 0x65, 0x63, 0x75, 0x74, 0x6f, 0x72,
+	0x12, 0x21, 0x2e, 0x67, 0x6f, 0x74, 0x6c, 0x69, 0x6e, 0x2e, 0x55, 0x6e, 0x72, 0x65, 0x67, 0x69,
+	0x73, 0x74, 0x65, 0x72, 0x45, 0x78, 0x65, 0x63, 0x75, 0x74, 0x6f, 0x72, 0x52, 0x65, 0x71, 0x75,
+	0x65, 0x73, 0x74, 0x1a, 0x22, 0x2e, 0x67, 0x6f, 0x74, 0x6c, 0x69, 0x6e, 0x2e, 0x55, 0x6e, 0x72,
+	0x65, 0x67, 0x69, 0x73, 0x74, 0x65, 0x72, 0x45, 0x78, 0x65, 0x63, 0x75, 0x74, 0x6f, 0x72, 0x52,
+	0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x00, 0x12, 0x4a, 0x0a, 0x0e, 0x45, 0x78, 0x65,
+	0x63, 0x75, 0x74, 0x65, 0x43, 0x6f, 0x6d, 0x6d, 0x61, 0x6e, 0x64, 0x12, 0x19, 0x2e, 0x67, 0x6f,
+	0x74, 0x6c, 0x69, 0x6e, 0x2e, 0x43, 0x6f, 0x6d, 0x6d, 0x61, 0x6e, 0x64, 0x46, 0x72, 0x6f, 0x6d,
+	0x52, 0x65, 0x6d, 0x6f, 0x74, 0x65, 0x1a, 0x17, 0x2e, 0x67, 0x6f, 0x74, 0x6c, 0x69, 0x6e, 0x2e,
+	0x43, 0x6f, 0x6d, 0x6d, 0x61, 0x6e, 0x64, 0x54, 0x6f, 0x52, 0x65, 0x6d, 0x6f, 0x74, 0x65, 0x22,
+	0x00, 0x28, 0x01, 0x30, 0x01, 0x12, 0x57, 0x0a, 0x10, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
+	0x53, 0x63, 0x68, 0x65, 0x64, 0x75, 0x6c, 0x65, 0x72, 0x12, 0x1f, 0x2e, 0x67, 0x6f, 0x74, 0x6c,
+	0x69, 0x6e, 0x2e, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x53, 0x63, 0x68, 0x65, 0x64, 0x75,
+	0x6c, 0x65, 0x72, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x20, 0x2e, 0x67, 0x6f, 0x74,
+	0x6c, 0x69, 0x6e, 0x2e, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x53, 0x63, 0x68, 0x65, 0x64,
+	0x75, 0x6c, 0x65, 0x72, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x00, 0x12, 0x45,
+	0x0a, 0x0a, 0x52, 0x75, 0x6e, 0x50, 0x72, 0x6f, 0x67, 0x72, 0x61, 0x6d, 0x12, 0x19, 0x2e, 0x67,
+	0x6f, 0x74, 0x6c, 0x69, 0x6e, 0x2e, 0x52, 0x75, 0x6e, 0x50, 0x72, 0x6f, 0x67, 0x72, 0x61, 0x6d,
+	0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1a, 0x2e, 0x67, 0x6f, 0x74, 0x6c, 0x69, 0x6e,
+	0x2e, 0x52, 0x75, 0x6e, 0x50, 0x72, 0x6f, 0x67, 0x72, 0x61, 0x6d, 0x52, 0x65, 0x73, 0x70, 0x6f,
+	0x6e, 0x73, 0x65, 0x22, 0x00, 0x12, 0x47, 0x0a, 0x0a, 0x57, 0x61, 0x69, 0x74, 0x52, 0x65, 0x73,
+	0x75, 0x6c, 0x74, 0x12, 0x19, 0x2e, 0x67, 0x6f, 0x74, 0x6c, 0x69, 0x6e, 0x2e, 0x57, 0x61, 0x69,
+	0x74, 0x52, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1a,
+	0x2e, 0x67, 0x6f, 0x74, 0x6c, 0x69, 0x6e, 0x2e, 0x57, 0x61, 0x69, 0x74, 0x52, 0x65, 0x73, 0x75,
+	0x6c, 0x74, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x00, 0x30, 0x01, 0x42, 0x1c,
+	0x5a, 0x1a, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x79, 0x61, 0x6f,
+	0x67, 0x75, 0x61, 0x69, 0x73, 0x2f, 0x67, 0x6f, 0x74, 0x6c, 0x69, 0x6e, 0x62, 0x06, 0x70, 0x72,
+	0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -773,36 +1035,48 @@ func file_gotlin_proto_rawDescGZIP() []byte {
 }
 
 var file_gotlin_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_gotlin_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
+var file_gotlin_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
 var file_gotlin_proto_goTypes = []interface{}{
 	(CommandType)(0),                             // 0: gotlin.CommandType
 	(*RegisterExecutorRequest)(nil),              // 1: gotlin.RegisterExecutorRequest
 	(*RegisterExecutorResponse)(nil),             // 2: gotlin.RegisterExecutorResponse
 	(*UnregisterExecutorRequest)(nil),            // 3: gotlin.UnregisterExecutorRequest
 	(*UnregisterExecutorResponse)(nil),           // 4: gotlin.UnregisterExecutorResponse
-	(*CommandFromClient)(nil),                    // 5: gotlin.CommandFromClient
-	(*CommandToClient)(nil),                      // 6: gotlin.CommandToClient
-	(*RegisterExecutorRequest_Label)(nil),        // 7: gotlin.RegisterExecutorRequest.Label
-	(*CommandFromClient_ExecuteInstruction)(nil), // 8: gotlin.CommandFromClient.ExecuteInstruction
-	(*CommandToClient_Instruction)(nil),          // 9: gotlin.CommandToClient.Instruction
-	(*CommandToClient_ExecuteInstruction)(nil),   // 10: gotlin.CommandToClient.ExecuteInstruction
+	(*CommandFromRemote)(nil),                    // 5: gotlin.CommandFromRemote
+	(*CommandToRemote)(nil),                      // 6: gotlin.CommandToRemote
+	(*RequestSchedulerRequest)(nil),              // 7: gotlin.RequestSchedulerRequest
+	(*RequestSchedulerResponse)(nil),             // 8: gotlin.RequestSchedulerResponse
+	(*RunProgramRequest)(nil),                    // 9: gotlin.RunProgramRequest
+	(*RunProgramResponse)(nil),                   // 10: gotlin.RunProgramResponse
+	(*WaitResultRequest)(nil),                    // 11: gotlin.WaitResultRequest
+	(*WaitResultResponse)(nil),                   // 12: gotlin.WaitResultResponse
+	(*RegisterExecutorRequest_Label)(nil),        // 13: gotlin.RegisterExecutorRequest.Label
+	(*CommandFromRemote_ExecuteInstruction)(nil), // 14: gotlin.CommandFromRemote.ExecuteInstruction
+	(*CommandToRemote_Instruction)(nil),          // 15: gotlin.CommandToRemote.Instruction
+	(*CommandToRemote_ExecuteInstruction)(nil),   // 16: gotlin.CommandToRemote.ExecuteInstruction
 }
 var file_gotlin_proto_depIdxs = []int32{
-	7,  // 0: gotlin.RegisterExecutorRequest.labels:type_name -> gotlin.RegisterExecutorRequest.Label
-	0,  // 1: gotlin.CommandFromClient.type:type_name -> gotlin.CommandType
-	8,  // 2: gotlin.CommandFromClient.execute_instruction:type_name -> gotlin.CommandFromClient.ExecuteInstruction
-	0,  // 3: gotlin.CommandToClient.type:type_name -> gotlin.CommandType
-	10, // 4: gotlin.CommandToClient.execute_instruction:type_name -> gotlin.CommandToClient.ExecuteInstruction
-	9,  // 5: gotlin.CommandToClient.ExecuteInstruction.op:type_name -> gotlin.CommandToClient.Instruction
-	9,  // 6: gotlin.CommandToClient.ExecuteInstruction.args:type_name -> gotlin.CommandToClient.Instruction
+	13, // 0: gotlin.RegisterExecutorRequest.labels:type_name -> gotlin.RegisterExecutorRequest.Label
+	0,  // 1: gotlin.CommandFromRemote.type:type_name -> gotlin.CommandType
+	14, // 2: gotlin.CommandFromRemote.execute_instruction:type_name -> gotlin.CommandFromRemote.ExecuteInstruction
+	0,  // 3: gotlin.CommandToRemote.type:type_name -> gotlin.CommandType
+	16, // 4: gotlin.CommandToRemote.execute_instruction:type_name -> gotlin.CommandToRemote.ExecuteInstruction
+	15, // 5: gotlin.CommandToRemote.ExecuteInstruction.op:type_name -> gotlin.CommandToRemote.Instruction
+	15, // 6: gotlin.CommandToRemote.ExecuteInstruction.args:type_name -> gotlin.CommandToRemote.Instruction
 	1,  // 7: gotlin.ServerService.RegisterExecutor:input_type -> gotlin.RegisterExecutorRequest
 	3,  // 8: gotlin.ServerService.UnregisterExecutor:input_type -> gotlin.UnregisterExecutorRequest
-	5,  // 9: gotlin.ServerService.ExecuteCommand:input_type -> gotlin.CommandFromClient
-	2,  // 10: gotlin.ServerService.RegisterExecutor:output_type -> gotlin.RegisterExecutorResponse
-	4,  // 11: gotlin.ServerService.UnregisterExecutor:output_type -> gotlin.UnregisterExecutorResponse
-	6,  // 12: gotlin.ServerService.ExecuteCommand:output_type -> gotlin.CommandToClient
-	10, // [10:13] is the sub-list for method output_type
-	7,  // [7:10] is the sub-list for method input_type
+	5,  // 9: gotlin.ServerService.ExecuteCommand:input_type -> gotlin.CommandFromRemote
+	7,  // 10: gotlin.ServerService.RequestScheduler:input_type -> gotlin.RequestSchedulerRequest
+	9,  // 11: gotlin.ServerService.RunProgram:input_type -> gotlin.RunProgramRequest
+	11, // 12: gotlin.ServerService.WaitResult:input_type -> gotlin.WaitResultRequest
+	2,  // 13: gotlin.ServerService.RegisterExecutor:output_type -> gotlin.RegisterExecutorResponse
+	4,  // 14: gotlin.ServerService.UnregisterExecutor:output_type -> gotlin.UnregisterExecutorResponse
+	6,  // 15: gotlin.ServerService.ExecuteCommand:output_type -> gotlin.CommandToRemote
+	8,  // 16: gotlin.ServerService.RequestScheduler:output_type -> gotlin.RequestSchedulerResponse
+	10, // 17: gotlin.ServerService.RunProgram:output_type -> gotlin.RunProgramResponse
+	12, // 18: gotlin.ServerService.WaitResult:output_type -> gotlin.WaitResultResponse
+	13, // [13:19] is the sub-list for method output_type
+	7,  // [7:13] is the sub-list for method input_type
 	7,  // [7:7] is the sub-list for extension type_name
 	7,  // [7:7] is the sub-list for extension extendee
 	0,  // [0:7] is the sub-list for field type_name
@@ -863,7 +1137,7 @@ func file_gotlin_proto_init() {
 			}
 		}
 		file_gotlin_proto_msgTypes[4].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*CommandFromClient); i {
+			switch v := v.(*CommandFromRemote); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -875,7 +1149,7 @@ func file_gotlin_proto_init() {
 			}
 		}
 		file_gotlin_proto_msgTypes[5].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*CommandToClient); i {
+			switch v := v.(*CommandToRemote); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -887,7 +1161,7 @@ func file_gotlin_proto_init() {
 			}
 		}
 		file_gotlin_proto_msgTypes[6].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*RegisterExecutorRequest_Label); i {
+			switch v := v.(*RequestSchedulerRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -899,7 +1173,7 @@ func file_gotlin_proto_init() {
 			}
 		}
 		file_gotlin_proto_msgTypes[7].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*CommandFromClient_ExecuteInstruction); i {
+			switch v := v.(*RequestSchedulerResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -911,7 +1185,7 @@ func file_gotlin_proto_init() {
 			}
 		}
 		file_gotlin_proto_msgTypes[8].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*CommandToClient_Instruction); i {
+			switch v := v.(*RunProgramRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -923,7 +1197,79 @@ func file_gotlin_proto_init() {
 			}
 		}
 		file_gotlin_proto_msgTypes[9].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*CommandToClient_ExecuteInstruction); i {
+			switch v := v.(*RunProgramResponse); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_gotlin_proto_msgTypes[10].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*WaitResultRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_gotlin_proto_msgTypes[11].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*WaitResultResponse); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_gotlin_proto_msgTypes[12].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*RegisterExecutorRequest_Label); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_gotlin_proto_msgTypes[13].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*CommandFromRemote_ExecuteInstruction); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_gotlin_proto_msgTypes[14].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*CommandToRemote_Instruction); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_gotlin_proto_msgTypes[15].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*CommandToRemote_ExecuteInstruction); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -941,7 +1287,7 @@ func file_gotlin_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_gotlin_proto_rawDesc,
 			NumEnums:      1,
-			NumMessages:   10,
+			NumMessages:   16,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

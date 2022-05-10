@@ -191,7 +191,7 @@ func NewCommander(ep *ExecutorPool, host Host, stream ServerService_ExecuteComma
 }
 
 func (c *Commander) ExecuteInstruction(ctx context.Context, op Instruction, args ...Instruction) (InstructionResult, error) {
-	ts := []*CommandToClient_Instruction{}
+	ts := []*CommandToRemote_Instruction{}
 
 	ins := append([]Instruction{}, op)
 	ins = append(ins, args...)
@@ -204,7 +204,7 @@ func (c *Commander) ExecuteInstruction(ctx context.Context, op Instruction, args
 		if err != nil {
 			return InstructionResult{}, err
 		}
-		t := &CommandToClient_Instruction{
+		t := &CommandToRemote_Instruction{
 			Id:      in.ID.String(),
 			Opcode:  string(in.OpCode),
 			Operand: operand,
@@ -216,11 +216,11 @@ func (c *Commander) ExecuteInstruction(ctx context.Context, op Instruction, args
 	id := NewID()
 	timeout := int64(3000)
 
-	r := &CommandToClient{
+	r := &CommandToRemote{
 		Id:      id.String(),
 		Type:    CommandType_ExecuteInstruction,
 		Timeout: timeout,
-		ExecuteInstruction: &CommandToClient_ExecuteInstruction{
+		ExecuteInstruction: &CommandToRemote_ExecuteInstruction{
 			Op:   ts[0],
 			Args: ts[1:],
 		},

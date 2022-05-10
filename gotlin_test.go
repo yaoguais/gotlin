@@ -89,8 +89,6 @@ func TestGotlin_ProgramCounterProcessor(t *testing.T) {
 	g, err := NewGotlin(WithDatabase(db), WithServerExecutor(true), WithEnableServer(false))
 	require.Nil(t, err)
 
-	s := NewScheduler()
-
 	i1 := NewInstruction().ChangeImmediateValue(1)
 	i2 := NewInstruction().ChangeImmediateValue(2)
 	i3 := NewInstruction().ChangeToArithmetic(OpCodeAdd)
@@ -107,7 +105,7 @@ func TestGotlin_ProgramCounterProcessor(t *testing.T) {
 	p, ok := p.ChangeState(StateReady)
 	require.True(t, ok)
 
-	err = g.LoadScheduler(ctx, s)
+	s, err := g.RequestScheduler(ctx)
 	require.Nil(t, err)
 
 	err = g.LoadProgram(ctx, p, ins)
@@ -147,8 +145,6 @@ func TestGotlin_DatabaseQuery(t *testing.T) {
 	g, err := NewGotlin(WithDatabase(db), WithServerExecutor(true), WithEnableServer(false))
 	require.Nil(t, err)
 
-	s := NewScheduler()
-
 	converters := []QueryConverter{QueryConverterFirstValue}
 	d1 := NewDatabaseQuery(testDriver, testDSN, "select age from test_users where name = 'Rick'", converters)
 	i1 := NewInstruction().ChangeDatabaseQuery(d1)
@@ -168,7 +164,7 @@ func TestGotlin_DatabaseQuery(t *testing.T) {
 	p, ok := p.ChangeState(StateReady)
 	require.True(t, ok)
 
-	err = g.LoadScheduler(ctx, s)
+	s, err := g.RequestScheduler(ctx)
 	require.Nil(t, err)
 
 	err = g.LoadProgram(ctx, p, ins)
@@ -188,8 +184,6 @@ func TestGotlin_DAGProcessor(t *testing.T) {
 
 	g, err := NewGotlin(WithDatabase(db), WithServerExecutor(true), WithEnableServer(false))
 	require.Nil(t, err)
-
-	s := NewScheduler()
 
 	i1 := NewInstruction().ChangeImmediateValue(1)
 	i2 := NewInstruction().ChangeImmediateValue(2)
@@ -223,7 +217,7 @@ func TestGotlin_DAGProcessor(t *testing.T) {
 	p, ok := p.ChangeState(StateReady)
 	require.True(t, ok)
 
-	err = g.LoadScheduler(ctx, s)
+	s, err := g.RequestScheduler(ctx)
 	require.Nil(t, err)
 
 	err = g.LoadProgram(ctx, p, ins)
@@ -293,9 +287,7 @@ func TestGotlin_CollectionInstruction(t *testing.T) {
 	}
 
 	for _, q := range qs {
-		s := NewScheduler()
-
-		err = g.LoadScheduler(ctx, s)
+		s, err := g.RequestScheduler(ctx)
 		require.Nil(t, err)
 
 		converters := []QueryConverter{QueryConverterFlat}
@@ -346,8 +338,6 @@ func TestGotlin_RemoteExecutorViaGRPC(t *testing.T) {
 
 	time.Sleep(100 * time.Millisecond)
 
-	s := NewScheduler()
-
 	i1 := NewInstruction().ChangeImmediateValue(1)
 	i2 := NewInstruction().ChangeImmediateValue(2)
 	i3 := NewInstruction().ChangeToArithmetic(OpCodeAdd)
@@ -364,7 +354,7 @@ func TestGotlin_RemoteExecutorViaGRPC(t *testing.T) {
 	p, ok := p.ChangeState(StateReady)
 	require.True(t, ok)
 
-	err = g.LoadScheduler(ctx, s)
+	s, err := g.RequestScheduler(ctx)
 	require.Nil(t, err)
 
 	err = g.LoadProgram(ctx, p, ins)
@@ -382,7 +372,7 @@ func TestGotlin_RemoteExecutorViaGRPC(t *testing.T) {
 	require.Nil(t, err)
 
 	go func() {
-		err := c.StartComputeNode(ctx)
+		err := c.StartComputeNode(ctx, StartComputeNodeOption{})
 		fmt.Printf("Loop commands, %v\n", err)
 	}()
 

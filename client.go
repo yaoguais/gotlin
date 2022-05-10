@@ -76,17 +76,19 @@ func NewClient(options ...ClientOption) (*Client, error) {
 }
 
 type RegisterExecutorOption struct {
-	ID     ExecutorID
-	Host   Host
-	Labels Labels
+	ID          ExecutorID
+	Host        Host
+	Labels      Labels
+	CallOptions ClientCallOptions
 }
 
 type UnregisterExecutorOption struct {
-	ID    ExecutorID
-	Error error
+	ID          ExecutorID
+	Error       error
+	CallOptions ClientCallOptions
 }
 
-func (c *Client) RegisterExecutor(ctx context.Context, r RegisterExecutorOption, options ...ClientCallOption) error {
+func (c *Client) RegisterExecutor(ctx context.Context, r RegisterExecutorOption) error {
 	req := &RegisterExecutorRequest{
 		Id:   r.ID.String(),
 		Host: r.Host.String(),
@@ -94,12 +96,11 @@ func (c *Client) RegisterExecutor(ctx context.Context, r RegisterExecutorOption,
 	for _, v := range r.Labels {
 		req.Labels = append(req.Labels, &RegisterExecutorRequest_Label{Key: v.Key, Value: v.Value})
 	}
-	calls := ClientCallOptions(options).GRPCOption()
-	_, err := c.c.RegisterExecutor(ctx, req, calls...)
+	_, err := c.c.RegisterExecutor(ctx, req, r.CallOptions.GRPCOption()...)
 	return errors.Wrap(err, "Register Executor")
 }
 
-func (c *Client) UnregisterExecutor(ctx context.Context, r UnregisterExecutorOption, options ...ClientCallOption) error {
+func (c *Client) UnregisterExecutor(ctx context.Context, r UnregisterExecutorOption) error {
 	var error string
 	if r.Error != nil {
 		error = r.Error.Error()
@@ -108,24 +109,25 @@ func (c *Client) UnregisterExecutor(ctx context.Context, r UnregisterExecutorOpt
 		Id:    r.ID.String(),
 		Error: error,
 	}
-	calls := ClientCallOptions(options).GRPCOption()
-	_, err := c.c.UnregisterExecutor(ctx, req, calls...)
+	_, err := c.c.UnregisterExecutor(ctx, req, r.CallOptions.GRPCOption()...)
 	return errors.Wrap(err, "Unregister Executor")
 }
 
-func (c *Client) StartComputeNode(ctx context.Context, options ...ClientCallOption) error {
-	return c.handleInstructions(ctx, options...)
+type StartComputeNodeOption struct {
+	CallOptions ClientCallOptions
 }
 
-func (c *Client) handleInstructions(ctx context.Context, options ...ClientCallOption) error {
-	calls := ClientCallOptions(options).GRPCOption()
+func (c *Client) StartComputeNode(ctx context.Context, r StartComputeNodeOption) error {
+	return c.handleInstructions(ctx, r.CallOptions)
+}
 
-	stream, err := c.c.ExecuteCommand(ctx, calls...)
+func (c *Client) handleInstructions(ctx context.Context, callOptions ClientCallOptions) error {
+	stream, err := c.c.ExecuteCommand(ctx, callOptions.GRPCOption()...)
 	if err != nil {
 		return errors.Wrap(err, "Client execute command")
 	}
 
-	r := &CommandFromClient{
+	r := &CommandFromRemote{
 		Type: CommandType_ConnectToServer,
 	}
 	err = stream.Send(r)
@@ -144,7 +146,7 @@ func (c *Client) handleInstructions(ctx context.Context, options ...ClientCallOp
 
 		if r2.Type == CommandType_ExecuteInstruction {
 			ts := []Instruction{}
-			ins := append([]*CommandToClient_Instruction{}, r2.ExecuteInstruction.Op)
+			ins := append([]*CommandToRemote_Instruction{}, r2.ExecuteInstruction.Op)
 			ins = append(ins, r2.ExecuteInstruction.Args...)
 			for i, in := range ins {
 				id, err := ParseInstructionID(in.Id)
@@ -186,10 +188,10 @@ func (c *Client) handleInstructions(ctx context.Context, options ...ClientCallOp
 				return errors.Wrap(err, "Marshal remote result")
 			}
 
-			r3 := &CommandFromClient{
+			r3 := &CommandFromRemote{
 				Id:   r2.Id,
 				Type: CommandType_ExecuteInstruction,
-				ExecuteInstruction: &CommandFromClient_ExecuteInstruction{
+				ExecuteInstruction: &CommandFromRemote_ExecuteInstruction{
 					Id:     r2.ExecuteInstruction.GetOp().GetId(),
 					Opcode: r2.ExecuteInstruction.GetOp().GetOpcode(),
 					Result: data,
@@ -209,13 +211,14 @@ func (c *Client) handleInstructions(ctx context.Context, options ...ClientCallOp
 }
 
 type RequestSchedulerOption struct {
+	CallOptions ClientCallOptions
 }
 
 type RequestSchedulerResult struct {
 	SchedulerID SchedulerID
 }
 
-func (c *Client) RequestScheduler(ctx context.Context, r RequestSchedulerOption, options ...ClientCallOption) (RequestSchedulerResult, error) {
+func (c *Client) RequestScheduler(ctx context.Context, r RequestSchedulerOption) (RequestSchedulerResult, error) {
 	return RequestSchedulerResult{}, errors.New("Unimplemented")
 }
 
@@ -223,12 +226,13 @@ type RunProgramOption struct {
 	SchedulerID  SchedulerID
 	Program      Program
 	Instructions []Instruction
+	CallOptions  ClientCallOptions
 }
 
 type RunProgramResult struct {
 }
 
-func (c *Client) RunProgram(ctx context.Context, r RunProgramOption, options ...ClientCallOption) (RunProgramResult, error) {
+func (c *Client) RunProgram(ctx context.Context, r RunProgramOption) (RunProgramResult, error) {
 	return RunProgramResult{}, errors.New("Unimplemented")
 }
 

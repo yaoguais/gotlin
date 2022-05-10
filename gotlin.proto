@@ -7,7 +7,10 @@ option go_package = "github.com/yaoguais/gotlin";
 service ServerService {
     rpc RegisterExecutor(RegisterExecutorRequest) returns(RegisterExecutorResponse) {}
     rpc UnregisterExecutor(UnregisterExecutorRequest) returns(UnregisterExecutorResponse) {}
-    rpc ExecuteCommand(stream CommandFromClient) returns (stream CommandToClient) {}
+    rpc ExecuteCommand(stream CommandFromRemote) returns (stream CommandToRemote) {}
+    rpc RequestScheduler(RequestSchedulerRequest) returns(RequestSchedulerResponse) {}
+    rpc RunProgram(RunProgramRequest) returns(RunProgramResponse) {}
+    rpc WaitResult(WaitResultRequest) returns (stream WaitResultResponse) {}
 }
 
 message RegisterExecutorRequest {
@@ -39,7 +42,7 @@ enum CommandType {
     ExecuteInstruction = 4;
 }
 
-message CommandFromClient {
+message CommandFromRemote {
     message ExecuteInstruction {
         string id = 1; 
         string opcode = 2;
@@ -51,7 +54,7 @@ message CommandFromClient {
     ExecuteInstruction execute_instruction = 4;
 }
 
-message CommandToClient {
+message CommandToRemote {
     message Instruction {
         string id = 1; 
         string opcode = 2;
@@ -67,4 +70,28 @@ message CommandToClient {
     int64 timeout = 3;
     string error = 4;
     ExecuteInstruction execute_instruction = 5;
+}
+
+message RequestSchedulerRequest {
+
+}
+
+message RequestSchedulerResponse {
+    string id = 1;
+}
+
+message RunProgramRequest {
+
+}
+
+message RunProgramResponse {
+
+}
+
+message WaitResultRequest {
+
+}
+
+message WaitResultResponse {
+
 }

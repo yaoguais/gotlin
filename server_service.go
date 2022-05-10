@@ -90,3 +90,15 @@ func (s *serverService) ExecuteCommand(stream ServerService_ExecuteCommandServer
 		}
 	}
 }
+
+func (s *serverService) RequestScheduler(context.Context, *RequestSchedulerRequest) (*RequestSchedulerResponse, error) {
+	return &RequestSchedulerResponse{}, nil
+}
+
+func (s *serverService) RunProgram(context.Context, *RunProgramRequest) (*RunProgramResponse, error) {
+	return &RunProgramResponse{}, nil
+}
+
+func (s *serverService) WaitResult(*WaitResultRequest, ServerService_WaitResultServer) error {
+	return nil
+}

@@ -106,7 +106,7 @@ func main() {
 		ID:     NewExecutorID(),
 		Labels: NewLabels(OpCodeLabelKey, "RETURN9527"),
 	})
-	_ = c.StartComputeNode(context.Background())
+	_ = c.StartComputeNode(context.Background(), StartComputeNodeOption{})
 }
 ```
 

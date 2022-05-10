@@ -21,6 +21,9 @@ type ServerServiceClient interface {
 	RegisterExecutor(ctx context.Context, in *RegisterExecutorRequest, opts ...grpc.CallOption) (*RegisterExecutorResponse, error)
 	UnregisterExecutor(ctx context.Context, in *UnregisterExecutorRequest, opts ...grpc.CallOption) (*UnregisterExecutorResponse, error)
 	ExecuteCommand(ctx context.Context, opts ...grpc.CallOption) (ServerService_ExecuteCommandClient, error)
+	RequestScheduler(ctx context.Context, in *RequestSchedulerRequest, opts ...grpc.CallOption) (*RequestSchedulerResponse, error)
+	RunProgram(ctx context.Context, in *RunProgramRequest, opts ...grpc.CallOption) (*RunProgramResponse, error)
+	WaitResult(ctx context.Context, in *WaitResultRequest, opts ...grpc.CallOption) (ServerService_WaitResultClient, error)
 }
 
 type serverServiceClient struct {
@@ -59,8 +62,8 @@ func (c *serverServiceClient) ExecuteCommand(ctx context.Context, opts ...grpc.C
 }
 
 type ServerService_ExecuteCommandClient interface {
-	Send(*CommandFromClient) error
-	Recv() (*CommandToClient, error)
+	Send(*CommandFromRemote) error
+	Recv() (*CommandToRemote, error)
 	grpc.ClientStream
 }
 
@@ -68,12 +71,62 @@ type serverServiceExecuteCommandClient struct {
 	grpc.ClientStream
 }
 
-func (x *serverServiceExecuteCommandClient) Send(m *CommandFromClient) error {
+func (x *serverServiceExecuteCommandClient) Send(m *CommandFromRemote) error {
 	return x.ClientStream.SendMsg(m)
 }
 
-func (x *serverServiceExecuteCommandClient) Recv() (*CommandToClient, error) {
-	m := new(CommandToClient)
+func (x *serverServiceExecuteCommandClient) Recv() (*CommandToRemote, error) {
+	m := new(CommandToRemote)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (c *serverServiceClient) RequestScheduler(ctx context.Context, in *RequestSchedulerRequest, opts ...grpc.CallOption) (*RequestSchedulerResponse, error) {
+	out := new(RequestSchedulerResponse)
+	err := c.cc.Invoke(ctx, "/gotlin.ServerService/RequestScheduler", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *serverServiceClient) RunProgram(ctx context.Context, in *RunProgramRequest, opts ...grpc.CallOption) (*RunProgramResponse, error) {
+	out := new(RunProgramResponse)
+	err := c.cc.Invoke(ctx, "/gotlin.ServerService/RunProgram", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *serverServiceClient) WaitResult(ctx context.Context, in *WaitResultRequest, opts ...grpc.CallOption) (ServerService_WaitResultClient, error) {
+	stream, err := c.cc.NewStream(ctx, &ServerService_ServiceDesc.Streams[1], "/gotlin.ServerService/WaitResult", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &serverServiceWaitResultClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type ServerService_WaitResultClient interface {
+	Recv() (*WaitResultResponse, error)
+	grpc.ClientStream
+}
+
+type serverServiceWaitResultClient struct {
+	grpc.ClientStream
+}
+
+func (x *serverServiceWaitResultClient) Recv() (*WaitResultResponse, error) {
+	m := new(WaitResultResponse)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
@@ -87,6 +140,9 @@ type ServerServiceServer interface {
 	RegisterExecutor(context.Context, *RegisterExecutorRequest) (*RegisterExecutorResponse, error)
 	UnregisterExecutor(context.Context, *UnregisterExecutorRequest) (*UnregisterExecutorResponse, error)
 	ExecuteCommand(ServerService_ExecuteCommandServer) error
+	RequestScheduler(context.Context, *RequestSchedulerRequest) (*RequestSchedulerResponse, error)
+	RunProgram(context.Context, *RunProgramRequest) (*RunProgramResponse, error)
+	WaitResult(*WaitResultRequest, ServerService_WaitResultServer) error
 	mustEmbedUnimplementedServerServiceServer()
 }
 
@@ -102,6 +158,15 @@ func (UnimplementedServerServiceServer) UnregisterExecutor(context.Context, *Unr
 }
 func (UnimplementedServerServiceServer) ExecuteCommand(ServerService_ExecuteCommandServer) error {
 	return status.Errorf(codes.Unimplemented, "method ExecuteCommand not implemented")
+}
+func (UnimplementedServerServiceServer) RequestScheduler(context.Context, *RequestSchedulerRequest) (*RequestSchedulerResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RequestScheduler not implemented")
+}
+func (UnimplementedServerServiceServer) RunProgram(context.Context, *RunProgramRequest) (*RunProgramResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RunProgram not implemented")
+}
+func (UnimplementedServerServiceServer) WaitResult(*WaitResultRequest, ServerService_WaitResultServer) error {
+	return status.Errorf(codes.Unimplemented, "method WaitResult not implemented")
 }
 func (UnimplementedServerServiceServer) mustEmbedUnimplementedServerServiceServer() {}
 
@@ -157,8 +222,8 @@ func _ServerService_ExecuteCommand_Handler(srv interface{}, stream grpc.ServerSt
 }
 
 type ServerService_ExecuteCommandServer interface {
-	Send(*CommandToClient) error
-	Recv() (*CommandFromClient, error)
+	Send(*CommandToRemote) error
+	Recv() (*CommandFromRemote, error)
 	grpc.ServerStream
 }
 
@@ -166,16 +231,73 @@ type serverServiceExecuteCommandServer struct {
 	grpc.ServerStream
 }
 
-func (x *serverServiceExecuteCommandServer) Send(m *CommandToClient) error {
+func (x *serverServiceExecuteCommandServer) Send(m *CommandToRemote) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-func (x *serverServiceExecuteCommandServer) Recv() (*CommandFromClient, error) {
-	m := new(CommandFromClient)
+func (x *serverServiceExecuteCommandServer) Recv() (*CommandFromRemote, error) {
+	m := new(CommandFromRemote)
 	if err := x.ServerStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
 	return m, nil
+}
+
+func _ServerService_RequestScheduler_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RequestSchedulerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ServerServiceServer).RequestScheduler(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/gotlin.ServerService/RequestScheduler",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ServerServiceServer).RequestScheduler(ctx, req.(*RequestSchedulerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ServerService_RunProgram_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RunProgramRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ServerServiceServer).RunProgram(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/gotlin.ServerService/RunProgram",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ServerServiceServer).RunProgram(ctx, req.(*RunProgramRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ServerService_WaitResult_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(WaitResultRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(ServerServiceServer).WaitResult(m, &serverServiceWaitResultServer{stream})
+}
+
+type ServerService_WaitResultServer interface {
+	Send(*WaitResultResponse) error
+	grpc.ServerStream
+}
+
+type serverServiceWaitResultServer struct {
+	grpc.ServerStream
+}
+
+func (x *serverServiceWaitResultServer) Send(m *WaitResultResponse) error {
+	return x.ServerStream.SendMsg(m)
 }
 
 // ServerService_ServiceDesc is the grpc.ServiceDesc for ServerService service.
@@ -193,6 +315,14 @@ var ServerService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "UnregisterExecutor",
 			Handler:    _ServerService_UnregisterExecutor_Handler,
 		},
+		{
+			MethodName: "RequestScheduler",
+			Handler:    _ServerService_RequestScheduler_Handler,
+		},
+		{
+			MethodName: "RunProgram",
+			Handler:    _ServerService_RunProgram_Handler,
+		},
 	},
 	Streams: []grpc.StreamDesc{
 		{
@@ -200,6 +330,11 @@ var ServerService_ServiceDesc = grpc.ServiceDesc{
 			Handler:       _ServerService_ExecuteCommand_Handler,
 			ServerStreams: true,
 			ClientStreams: true,
+		},
+		{
+			StreamName:    "WaitResult",
+			Handler:       _ServerService_WaitResult_Handler,
+			ServerStreams: true,
 		},
 	},
 	Metadata: "gotlin.proto",
