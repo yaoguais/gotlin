@@ -34,6 +34,7 @@ $ gotlin --compute-node start
 - [Submit a task to the service node](#submit-a-task-to-the-service-node)
 - [Design a compute node with a custom instruction set](#design-a-compute-node-with-a-custom-instruction-set)
 - [Intersect the results of the query in the database](#intersect-the-results-of-the-query-in-the-database)
+- [Use as an embedded library and an in-memory database](#use-as-an-embedded-library-and-an-in-memory-database)
 - [License](#license)
 
 ## Architecture
@@ -161,6 +162,45 @@ func main() {
 			fmt.Printf("Error: %v\n", err)
 		}
 	}
+}
+```
+
+## Use as an embedded library and an in-memory database
+
+```go
+func main() {
+	// Perform an arithmetic calculation "( 1 + 2 ) * ( 5 - 1 )", the expected result is 12
+	g, _ := NewGotlin(WithServerExecutor(true), WithEnableServer(false))
+
+	i1 := NewInstruction().ChangeImmediateValue(1)
+	i2 := NewInstruction().ChangeImmediateValue(2)
+	i3 := NewInstruction().ChangeToArithmetic(OpCodeAdd)
+	i4 := NewInstruction().ChangeImmediateValue(5)
+	i5 := NewInstruction().ChangeImmediateValue(1)
+	i6 := NewInstruction().ChangeToArithmetic(OpCodeSub)
+	i7 := NewInstruction().ChangeToArithmetic(OpCodeMul)
+	ins := []Instructioner{i1, i2, i3, i4, i5, i6, i7}
+
+	p := NewProgram()
+	for _, in := range ins {
+		p = p.AddInstruction(in.Instruction().ID)
+	}
+
+	d := NewInstructionDAG()
+	ids := []InstructionID{}
+	for _, v := range ins {
+		ids = append(ids, v.Instruction().ID)
+	}
+	d.Add(ids...)
+	d.AttachChildren(i3.ID, i1.ID, i2.ID)
+	d.AttachChildren(i6.ID, i4.ID, i5.ID)
+	d.AttachChildren(i7.ID, i3.ID, i6.ID)
+
+	p = p.ChangeProcessor(NewDAGProcessorContext(d, 8))
+	p, _ = p.ChangeState(StateReady)
+	s, _ := g.RequestScheduler(context.Background())
+	result, _ := g.RunProgramSync(context.Background(), s, p, ins)
+	fmt.Printf("Program: %s, result %v\n", p.ID, result)
 }
 ```
 

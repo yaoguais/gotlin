@@ -64,6 +64,54 @@ func (sp *SchedulerPool) newScheduler(ctx context.Context) (Scheduler, error) {
 	return s, errors.Wrap(err, "Save Scheduler to Repository")
 }
 
+func (sp *SchedulerPool) RunProgramSync(ctx context.Context, s Scheduler, p Program, ins []Instructioner) (interface{}, error) {
+	err := sp.RunProgram(ctx, s, p, ins)
+	if err != nil {
+		return nil, err
+	}
+
+	p, err = sp.ProgramRepository.Find(ctx, p.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	if p.Error != nil {
+		return nil, p.Error
+	}
+
+	if p.IsPCProcessor() {
+		id, err := ParseInstructionID(p.Processor.Data)
+		if err != nil {
+			return nil, err
+		}
+		in, err := sp.InstructionRepository.Find(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		return in.InstructionResult(ctx)
+	}
+
+	if p.IsDAGProcessor() {
+		d, err := ParseInstructionDAG(p.Processor.Data)
+		if err != nil {
+			return nil, err
+		}
+		ans := d.Ancestors()
+		if len(ans) == 0 {
+			return nil, errors.New("No instruction found")
+		}
+		id := ans[0]
+
+		in, err := sp.InstructionRepository.Find(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		return in.InstructionResult(ctx)
+	}
+
+	return nil, errors.New("The type of Processor is wrong")
+}
+
 func (sp *SchedulerPool) RunProgram(ctx context.Context, s Scheduler, p Program, ins []Instructioner) error {
 	sp.mu.Lock()
 	defer sp.mu.Unlock()
@@ -79,6 +127,12 @@ func (sp *SchedulerPool) RunProgram(ctx context.Context, s Scheduler, p Program,
 	}
 
 	return sp.runProgram(ctx, s, p)
+}
+
+func (sp *SchedulerPool) WaitResult(ctx context.Context) (chan ProgramResult, chan error) {
+	errCh := make(chan error, 1)
+	errCh <- errors.New("Unimplemented")
+	return nil, errCh
 }
 
 func (sp *SchedulerPool) loadProgram(ctx context.Context, p Program, ins []Instructioner) error {

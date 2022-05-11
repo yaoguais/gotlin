@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	gerrors "errors"
+	"sync"
 
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
@@ -14,6 +15,13 @@ var (
 	_ ProgramRepository     = (*ProgramDBRepository)(nil)
 	_ InstructionRepository = (*InstructionDBRepository)(nil)
 	_ ExecutorRepository    = (*ExecutorDBRepository)(nil)
+)
+
+var (
+	_ SchedulerRepository   = (*SchedulerMemoryRepository)(nil)
+	_ ProgramRepository     = (*ProgramMemoryRepository)(nil)
+	_ InstructionRepository = (*InstructionMemoryRepository)(nil)
+	_ ExecutorRepository    = (*ExecutorMemoryRepository)(nil)
 )
 
 var (
@@ -627,4 +635,176 @@ func (c ExecutorEntityConverter) ToModel(e ExecutorEntity) (m Executor, err erro
 		UpdateTime: ParseTimestamp(e.UpdateTime),
 		FinishTime: ParseTimestamp(e.FinishTime),
 	}, nil
+}
+
+type SchedulerMemoryRepository struct {
+	m  map[SchedulerID]Scheduler
+	mu *sync.RWMutex
+}
+
+func NewSchedulerMemoryRepository() SchedulerMemoryRepository {
+	return SchedulerMemoryRepository{
+		m:  make(map[SchedulerID]Scheduler),
+		mu: &sync.RWMutex{},
+	}
+}
+
+func (r SchedulerMemoryRepository) Find(ctx context.Context, id SchedulerID) (Scheduler, error) {
+	r.mu.RLock()
+	m, ok := r.m[id]
+	r.mu.RUnlock()
+	if !ok {
+		return Scheduler{}, ErrNotFound
+	}
+	return m, nil
+}
+
+func (r SchedulerMemoryRepository) Save(ctx context.Context, m *Scheduler) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	old, ok := r.m[m.ID]
+	if !ok {
+		r.m[m.ID] = *m
+		return nil
+	}
+
+	if !old.UpdateTime.IsEqual(m.UpdateTime) {
+		return errors.Errorf("Update Scheduler %s conflicts at version %d",
+			m.ID, m.UpdateTime)
+	}
+
+	m.UpdateTime = ParseTimestamp(requestNewUpdateTime(m.UpdateTime.Value()))
+	r.m[m.ID] = *m
+
+	return nil
+}
+
+type ProgramMemoryRepository struct {
+	m  map[ProgramID]Program
+	mu *sync.RWMutex
+}
+
+func NewProgramMemoryRepository() ProgramMemoryRepository {
+	return ProgramMemoryRepository{
+		m:  make(map[ProgramID]Program),
+		mu: &sync.RWMutex{},
+	}
+}
+
+func (r ProgramMemoryRepository) Find(ctx context.Context, id ProgramID) (Program, error) {
+	r.mu.RLock()
+	m, ok := r.m[id]
+	r.mu.RUnlock()
+	if !ok {
+		return Program{}, ErrNotFound
+	}
+	return m, nil
+}
+
+func (r ProgramMemoryRepository) Save(ctx context.Context, m *Program) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	old, ok := r.m[m.ID]
+	if !ok {
+		r.m[m.ID] = *m
+		return nil
+	}
+
+	if !old.UpdateTime.IsEqual(m.UpdateTime) {
+		return errors.Errorf("Update Program %s conflicts at version %d",
+			m.ID, m.UpdateTime)
+	}
+
+	m.UpdateTime = ParseTimestamp(requestNewUpdateTime(m.UpdateTime.Value()))
+	r.m[m.ID] = *m
+
+	return nil
+}
+
+type InstructionMemoryRepository struct {
+	m  map[InstructionID]Instruction
+	mu *sync.RWMutex
+}
+
+func NewInstructionMemoryRepository() InstructionMemoryRepository {
+	return InstructionMemoryRepository{
+		m:  make(map[InstructionID]Instruction),
+		mu: &sync.RWMutex{},
+	}
+}
+
+func (r InstructionMemoryRepository) Find(ctx context.Context, id InstructionID) (Instruction, error) {
+	r.mu.RLock()
+	m, ok := r.m[id]
+	r.mu.RUnlock()
+	if !ok {
+		return Instruction{}, ErrNotFound
+	}
+	return m, nil
+}
+
+func (r InstructionMemoryRepository) Save(ctx context.Context, m *Instruction) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	old, ok := r.m[m.ID]
+	if !ok {
+		r.m[m.ID] = *m
+		return nil
+	}
+
+	if !old.UpdateTime.IsEqual(m.UpdateTime) {
+		return errors.Errorf("Update Instruction %s conflicts at version %d",
+			m.ID, m.UpdateTime)
+	}
+
+	m.UpdateTime = ParseTimestamp(requestNewUpdateTime(m.UpdateTime.Value()))
+	r.m[m.ID] = *m
+
+	return nil
+}
+
+type ExecutorMemoryRepository struct {
+	m  map[ExecutorID]Executor
+	mu *sync.RWMutex
+}
+
+func NewExecutorMemoryRepository() ExecutorMemoryRepository {
+	return ExecutorMemoryRepository{
+		m:  make(map[ExecutorID]Executor),
+		mu: &sync.RWMutex{},
+	}
+}
+
+func (r ExecutorMemoryRepository) Find(ctx context.Context, id ExecutorID) (Executor, error) {
+	r.mu.RLock()
+	m, ok := r.m[id]
+	r.mu.RUnlock()
+	if !ok {
+		return Executor{}, ErrNotFound
+	}
+	return m, nil
+}
+
+func (r ExecutorMemoryRepository) Save(ctx context.Context, m *Executor) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	old, ok := r.m[m.ID]
+	if !ok {
+		r.m[m.ID] = *m
+		return nil
+	}
+
+	if !old.UpdateTime.IsEqual(m.UpdateTime) {
+		return errors.Errorf("Update Executor %s conflicts at version %d",
+			m.ID, m.UpdateTime)
+	}
+
+	m.UpdateTime = ParseTimestamp(requestNewUpdateTime(m.UpdateTime.Value()))
+	r.m[m.ID] = *m
+
+	return nil
 }

@@ -161,6 +161,10 @@ func ParseTimestamp(v int64) Timestamp {
 	return Timestamp(v)
 }
 
+func (v Timestamp) IsEqual(v2 Timestamp) bool {
+	return v == v2
+}
+
 type ProgramID = ID
 
 func NewProgramID() ProgramID {

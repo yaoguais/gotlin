@@ -50,38 +50,46 @@ func getTestDB() *gorm.DB {
 	return db
 }
 
-func assertProgramExecuteResult(t *testing.T, excepted interface{}, g *Gotlin, p Program) {
-	ctx := context.Background()
-
-	p, err := g.ProgramRepository.Find(ctx, p.ID)
-	require.Nil(t, err)
-	require.Nil(t, p.Error)
-
-	var instructionID InstructionID
-	if p.IsPCProcessor() {
-		instructionID, err = ParseInstructionID(p.Processor.Data)
-		require.Nil(t, err)
-	} else if p.IsDAGProcessor() {
-		d, err := ParseInstructionDAG(p.Processor.Data)
-		require.Nil(t, err)
-		ans := d.Ancestors()
-		require.Equal(t, 1, len(ans))
-		instructionID = ans[0]
-	} else {
-		require.Equal(t, "The type of Processor is wrong", "")
-	}
-
-	in, err := g.InstructionRepository.Find(ctx, instructionID)
-	require.Nil(t, err)
-	result, err := in.InstructionResult(ctx)
-	require.Nil(t, err)
-	resultJSON, _ := json.Marshal(result)
+func assertProgramExecuteResult(t require.TestingT, excepted interface{}, actual interface{}) {
+	resultJSON, _ := json.Marshal(actual)
 	exceptedJSON, _ := json.Marshal(excepted)
 	require.Equal(t, string(exceptedJSON), string(resultJSON))
 }
 
 // Perform an arithmetic calculation "( 1 + 2 ) * 4", the expected result is 12
 func TestGotlin_ProgramCounterProcessor(t *testing.T) {
+	ctx := context.Background()
+
+	g, err := NewGotlin(WithServerExecutor(true), WithEnableServer(false))
+	require.Nil(t, err)
+
+	i1 := NewInstruction().ChangeImmediateValue(1)
+	i2 := NewInstruction().ChangeImmediateValue(2)
+	i3 := NewInstruction().ChangeToArithmetic(OpCodeAdd)
+	i4 := NewInstruction().ChangeImmediateValue(4)
+	i5 := NewInstruction().ChangeToArithmetic(OpCodeMul)
+
+	ins := []Instructioner{i1, i2, i3, i4, i5}
+
+	p := NewProgram()
+	for _, in := range ins {
+		p = p.AddInstruction(in.Instruction().ID)
+	}
+
+	p, ok := p.ChangeState(StateReady)
+	require.True(t, ok)
+
+	s, err := g.RequestScheduler(ctx)
+	require.Nil(t, err)
+
+	result, err := g.RunProgramSync(ctx, s, p, ins)
+	require.Nil(t, err)
+
+	assertProgramExecuteResult(t, 12, result)
+}
+
+// Perform an arithmetic calculation "( 1 + 2 ) * 4", the expected result is 12
+func TestGotlin_ProgramCounterProcessor_WithDBRepository(t *testing.T) {
 	ctx := context.Background()
 
 	db := getTestDB()
@@ -108,10 +116,10 @@ func TestGotlin_ProgramCounterProcessor(t *testing.T) {
 	s, err := g.RequestScheduler(ctx)
 	require.Nil(t, err)
 
-	err = g.RunProgram(ctx, s, p, ins)
+	result, err := g.RunProgramSync(ctx, s, p, ins)
 	require.Nil(t, err)
 
-	assertProgramExecuteResult(t, 12, g, p)
+	assertProgramExecuteResult(t, 12, result)
 }
 
 // Perform an arithmetic calculation "48 + 44", the expected result is 92
@@ -164,10 +172,10 @@ func TestGotlin_DatabaseQuery(t *testing.T) {
 	s, err := g.RequestScheduler(ctx)
 	require.Nil(t, err)
 
-	err = g.RunProgram(ctx, s, p, ins)
+	result, err := g.RunProgramSync(ctx, s, p, ins)
 	require.Nil(t, err)
 
-	assertProgramExecuteResult(t, 92, g, p)
+	assertProgramExecuteResult(t, 92, result)
 }
 
 // Perform an arithmetic calculation "( 1 + 2 ) * 4", the expected result is 12
@@ -214,13 +222,69 @@ func TestGotlin_DAGProcessor(t *testing.T) {
 	s, err := g.RequestScheduler(ctx)
 	require.Nil(t, err)
 
-	err = g.RunProgram(ctx, s, p, ins)
+	result, err := g.RunProgramSync(ctx, s, p, ins)
 	require.Nil(t, err)
 
-	ans := d.Ancestors()
-	require.Equal(t, 1, len(ans))
+	assertProgramExecuteResult(t, 12, result)
+}
 
-	assertProgramExecuteResult(t, 12, g, p)
+func BenchmarkGotlin_DAGProcessor(b *testing.B) {
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		benchmarkGotlinDAGProcessor(b)
+	}
+}
+
+// Perform an arithmetic calculation "( 1 + 2 ) * ( 5 - 1 )", the expected result is 12
+func benchmarkGotlinDAGProcessor(t require.TestingT) {
+	ctx := context.Background()
+
+	g, err := NewGotlin(WithServerExecutor(true), WithEnableServer(false))
+	require.Nil(t, err)
+
+	i1 := NewInstruction().ChangeImmediateValue(1)
+	i2 := NewInstruction().ChangeImmediateValue(2)
+	i3 := NewInstruction().ChangeToArithmetic(OpCodeAdd)
+	i4 := NewInstruction().ChangeImmediateValue(5)
+	i5 := NewInstruction().ChangeImmediateValue(1)
+	i6 := NewInstruction().ChangeToArithmetic(OpCodeSub)
+	i7 := NewInstruction().ChangeToArithmetic(OpCodeMul)
+
+	ins := []Instructioner{i1, i2, i3, i4, i5, i6, i7}
+
+	p := NewProgram()
+	for _, in := range ins {
+		p = p.AddInstruction(in.Instruction().ID)
+	}
+
+	d := NewInstructionDAG()
+
+	ids := []InstructionID{}
+	for _, v := range ins {
+		ids = append(ids, v.Instruction().ID)
+	}
+	err = d.Add(ids...)
+	require.Nil(t, err)
+
+	err = d.AttachChildren(i3.ID, i1.ID, i2.ID)
+	require.Nil(t, err)
+	err = d.AttachChildren(i6.ID, i4.ID, i5.ID)
+	require.Nil(t, err)
+	err = d.AttachChildren(i7.ID, i3.ID, i6.ID)
+	require.Nil(t, err)
+
+	p = p.ChangeProcessor(NewDAGProcessorContext(d, 8))
+
+	p, ok := p.ChangeState(StateReady)
+	require.True(t, ok)
+
+	s, err := g.RequestScheduler(ctx)
+	require.Nil(t, err)
+
+	result, err := g.RunProgramSync(ctx, s, p, ins)
+	require.Nil(t, err)
+
+	assertProgramExecuteResult(t, 12, result)
 }
 
 func TestGotlin_CollectionInstruction(t *testing.T) {
@@ -300,10 +364,10 @@ func TestGotlin_CollectionInstruction(t *testing.T) {
 		p, ok := p.ChangeState(StateReady)
 		require.True(t, ok)
 
-		err = g.RunProgram(ctx, s, p, ins)
+		result, err := g.RunProgramSync(ctx, s, p, ins)
 		require.Nil(t, err)
 
-		assertProgramExecuteResult(t, q.Result, g, p)
+		assertProgramExecuteResult(t, q.Result, result)
 	}
 }
 
@@ -368,7 +432,16 @@ func TestGotlin_RemoteExecutorViaGRPC(t *testing.T) {
 
 	time.Sleep(3000 * time.Millisecond)
 
-	assertProgramExecuteResult(t, 12, g, p)
+	p, err = g.ProgramRepository.Find(ctx, p.ID)
+	require.Nil(t, err)
+	id, err := ParseInstructionID(p.Processor.Data)
+	require.Nil(t, err)
+	in, err := g.InstructionRepository.Find(ctx, id)
+	require.Nil(t, err)
+	result, err := in.InstructionResult(ctx)
+	require.Nil(t, err)
+
+	assertProgramExecuteResult(t, 12, result)
 }
 
 // Perform an arithmetic calculation "( 2 + 2 ) * 2", the expected result is 8
@@ -415,11 +488,8 @@ func TestGotlin_InstructionRef(t *testing.T) {
 	s, err := g.RequestScheduler(ctx)
 	require.Nil(t, err)
 
-	err = g.RunProgram(ctx, s, p, ins)
+	result, err := g.RunProgramSync(ctx, s, p, ins)
 	require.Nil(t, err)
 
-	ans := d.Ancestors()
-	require.Equal(t, 1, len(ans))
-
-	assertProgramExecuteResult(t, 8, g, p)
+	assertProgramExecuteResult(t, 8, result)
 }

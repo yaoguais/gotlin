@@ -239,6 +239,7 @@ func (c *Client) RunProgram(ctx context.Context, r RunProgramOption) (RunProgram
 type ProgramResult struct {
 	ID     ProgramID
 	Result InstructionResult
+	Error  error
 }
 
 func (c *Client) WaitResult(ctx context.Context) (chan ProgramResult, chan error) {

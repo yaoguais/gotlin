@@ -61,10 +61,10 @@ type Gotlin struct {
 
 func NewGotlin(options ...Option) (*Gotlin, error) {
 	g := &Gotlin{
-		SchedulerRepository:   nil,
-		ProgramRepository:     nil,
-		InstructionRepository: nil,
-		ExecutorRepository:    nil,
+		SchedulerRepository:   NewSchedulerMemoryRepository(),
+		ProgramRepository:     NewProgramMemoryRepository(),
+		InstructionRepository: NewInstructionMemoryRepository(),
+		ExecutorRepository:    NewExecutorMemoryRepository(),
 		EnableServer:          true,
 		ServerAddress:         ":9527",
 		ServerExecutor:        false,
@@ -98,8 +98,16 @@ func (g *Gotlin) RequestScheduler(ctx context.Context) (Scheduler, error) {
 	return g.schedulerPool.RequestScheduler(ctx)
 }
 
+func (g *Gotlin) RunProgramSync(ctx context.Context, s Scheduler, p Program, ins []Instructioner) (interface{}, error) {
+	return g.schedulerPool.RunProgramSync(ctx, s, p, ins)
+}
+
 func (g *Gotlin) RunProgram(ctx context.Context, s Scheduler, p Program, ins []Instructioner) error {
 	return g.schedulerPool.RunProgram(ctx, s, p, ins)
+}
+
+func (g *Gotlin) WaitResult(ctx context.Context) (chan ProgramResult, chan error) {
+	return g.schedulerPool.WaitResult(ctx)
 }
 
 func (g *Gotlin) StartServer(ctx context.Context) (err error) {
