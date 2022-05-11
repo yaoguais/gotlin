@@ -3,6 +3,7 @@ package gotlin
 import "github.com/pkg/errors"
 
 var (
+	ErrNotFound              = errors.New("Record not found")
 	ErrProcessorType         = errors.New("Proccess is invalid")
 	ErrProgramState          = errors.New("Program state is invalid")
 	ErrInstructionState      = errors.New("Instruction state is invalid")

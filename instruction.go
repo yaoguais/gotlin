@@ -82,3 +82,32 @@ func (m Instruction) Finish(result InstructionResult, err error) Instruction {
 
 	return m
 }
+
+func (m Instruction) Instruction() Instruction {
+	return m
+}
+
+type Instructioner interface {
+	Instruction() Instruction
+}
+
+type InstructionRefer interface {
+	Instructioner
+	IsRef()
+}
+
+type InstructionRef struct {
+	in Instruction
+}
+
+func NewInstructionRef(in Instruction) InstructionRef {
+	in.ID = in.ID.changeNonce()
+	return InstructionRef{in}
+}
+
+func (m InstructionRef) Instruction() Instruction {
+	return m.in
+}
+
+func (m InstructionRef) IsRef() {
+}

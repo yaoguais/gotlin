@@ -64,13 +64,29 @@ func (sp *SchedulerPool) newScheduler(ctx context.Context) (Scheduler, error) {
 	return s, errors.Wrap(err, "Save Scheduler to Repository")
 }
 
-func (sp *SchedulerPool) LoadProgram(ctx context.Context, p Program, ins []Instruction) error {
+func (sp *SchedulerPool) RunProgram(ctx context.Context, s Scheduler, p Program, ins []Instructioner) error {
 	sp.mu.Lock()
 	defer sp.mu.Unlock()
 
-	for _, in := range ins {
+	err := sp.loadProgram(ctx, p, ins)
+	if err != nil {
+		return err
+	}
+
+	p, err = sp.initProgram(ctx, s, p)
+	if err != nil {
+		return err
+	}
+
+	return sp.runProgram(ctx, s, p)
+}
+
+func (sp *SchedulerPool) loadProgram(ctx context.Context, p Program, ins []Instructioner) error {
+	for _, iner := range ins {
+		in := iner.Instruction()
 		exist := sp.instructions[in.ID]
-		if exist {
+		_, isRef := iner.(InstructionRefer)
+		if exist && !isRef {
 			return ErrInstructionDuplicated
 		}
 	}
@@ -80,27 +96,13 @@ func (sp *SchedulerPool) LoadProgram(ctx context.Context, p Program, ins []Instr
 		return ErrSchedulerDuplicated
 	}
 
-	for _, in := range ins {
-		err := sp.loadInstruction(ctx, in)
+	for _, iner := range ins {
+		err := sp.loadInstruction(ctx, iner)
 		if err != nil {
 			return err
 		}
 	}
 
-	return sp.loadProgram(ctx, p)
-}
-
-func (sp *SchedulerPool) AssignScheduler(ctx context.Context, s Scheduler, p Program) error {
-
-	p, err := sp.initProgram(ctx, s, p)
-	if err != nil {
-		return err
-	}
-
-	return sp.runProgram(ctx, s, p)
-}
-
-func (sp *SchedulerPool) loadProgram(ctx context.Context, p Program) error {
 	err := sp.ProgramRepository.Save(ctx, &p)
 	if err != nil {
 		return err
@@ -111,10 +113,27 @@ func (sp *SchedulerPool) loadProgram(ctx context.Context, p Program) error {
 	return nil
 }
 
-func (sp *SchedulerPool) loadInstruction(ctx context.Context, in Instruction) error {
-	err := sp.InstructionRepository.Save(ctx, &in)
-	if err != nil {
-		return err
+func (sp *SchedulerPool) loadInstruction(ctx context.Context, iner Instructioner) (err error) {
+	in := iner.Instruction()
+	_, isRef := iner.(InstructionRefer)
+
+	isSave := true
+
+	if isRef {
+		_, err = sp.InstructionRepository.Find(ctx, in.ID)
+		notFound := isRecordNotFound(err)
+		if err != nil && !notFound {
+			return
+		} else if !notFound {
+			isSave = false
+		}
+	}
+
+	if isSave {
+		err = sp.InstructionRepository.Save(ctx, &in)
+		if err != nil {
+			return
+		}
 	}
 
 	sp.instructions[in.ID] = true

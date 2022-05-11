@@ -17,6 +17,7 @@ var (
 
 type ID struct {
 	value uuid.UUID
+	nonce uuid.UUID
 }
 
 func NewID() ID {
@@ -58,7 +59,16 @@ func (v ID) IsEqual(v2 ID) bool {
 }
 
 func (v ID) MarshalJSON() ([]byte, error) {
-	return json.Marshal(v.String())
+	isEmpty := emptyUUIDRegexp.MatchString(v.nonce.String())
+	if !isEmpty {
+		return json.Marshal(v.value.String() + ":" + v.nonce.String())
+	}
+	return json.Marshal(v.value.String())
+}
+
+func (v ID) changeNonce() ID {
+	v.nonce = uuid.Must(uuid.NewV4())
+	return v
 }
 
 func (v *ID) UnmarshalJSON(data []byte) error {
@@ -70,11 +80,22 @@ func (v *ID) UnmarshalJSON(data []byte) error {
 	if err != nil {
 		return err
 	}
-	v2, err := ParseID(s)
+
+	ss := strings.Split(s, ":")
+	n := len(ss)
+	nonce := ID{}
+	if n >= 2 {
+		nonce, err = ParseID(ss[1])
+		if err != nil {
+			return err
+		}
+	}
+
+	value, err := ParseID(ss[0])
 	if err != nil {
 		return err
 	}
-	*v = v2
+	*v = ID{value.value, nonce.value}
 	return nil
 }
 

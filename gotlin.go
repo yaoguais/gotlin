@@ -98,12 +98,8 @@ func (g *Gotlin) RequestScheduler(ctx context.Context) (Scheduler, error) {
 	return g.schedulerPool.RequestScheduler(ctx)
 }
 
-func (g *Gotlin) LoadProgram(ctx context.Context, p Program, ins []Instruction) error {
-	return g.schedulerPool.LoadProgram(ctx, p, ins)
-}
-
-func (g *Gotlin) AssignScheduler(ctx context.Context, s Scheduler, p Program) error {
-	return g.schedulerPool.AssignScheduler(ctx, s, p)
+func (g *Gotlin) RunProgram(ctx context.Context, s Scheduler, p Program, ins []Instructioner) error {
+	return g.schedulerPool.RunProgram(ctx, s, p, ins)
 }
 
 func (g *Gotlin) StartServer(ctx context.Context) (err error) {

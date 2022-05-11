@@ -52,7 +52,7 @@ func requestNewUpdateTime(old int64) int64 {
 }
 
 func isRecordNotFound(err error) bool {
-	return err != nil && gerrors.Is(err, gorm.ErrRecordNotFound)
+	return err != nil && (errors.Cause(err) == ErrNotFound || gerrors.Is(err, gorm.ErrRecordNotFound))
 }
 
 type SchedulerEntity struct {
@@ -79,7 +79,7 @@ func (r SchedulerDBRepository) Find(ctx context.Context, id SchedulerID) (m Sche
 	e := SchedulerEntity{}
 	err = r.db.WithContext(ctx).Where("id = ?", id.String()).First(&e).Error
 	if err != nil {
-		return
+		return Scheduler{}, errors.Wrap(ErrNotFound, err.Error())
 	}
 	return SchedulerEntityConverter{}.ToModel(e)
 }
@@ -197,7 +197,7 @@ func (r ProgramDBRepository) Find(ctx context.Context, id ProgramID) (m Program,
 	e := ProgramEntity{}
 	err = r.db.WithContext(ctx).Where("id = ?", id.String()).First(&e).Error
 	if err != nil {
-		return
+		return Program{}, errors.Wrap(ErrNotFound, err.Error())
 	}
 	return ProgramEntityConverter{}.ToModel(e)
 }
@@ -344,7 +344,7 @@ func (r InstructionDBRepository) Find(ctx context.Context, id InstructionID) (m 
 	e := InstructionEntity{}
 	err = r.db.WithContext(ctx).Where("id = ?", id.String()).First(&e).Error
 	if err != nil {
-		return
+		return Instruction{}, errors.Wrap(ErrNotFound, err.Error())
 	}
 	return InstructionEntityConverter{}.ToModel(e)
 }
@@ -495,7 +495,7 @@ func (r ExecutorDBRepository) Find(ctx context.Context, id ExecutorID) (m Execut
 	e := ExecutorEntity{}
 	err = r.db.WithContext(ctx).Where("id = ?", id.String()).First(&e).Error
 	if err != nil {
-		return
+		return Executor{}, errors.Wrap(ErrNotFound, err.Error())
 	}
 	return ExecutorEntityConverter{}.ToModel(e)
 }
