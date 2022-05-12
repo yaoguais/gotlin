@@ -493,3 +493,49 @@ func TestGotlin_InstructionRef(t *testing.T) {
 
 	assertProgramExecuteResult(t, 8, result)
 }
+
+// Perform an arithmetic calculation "( 1 + 2 ) * 4", the expected result is 12
+func TestGotlin_WaitResult(t *testing.T) {
+	ctx := context.Background()
+
+	db := getTestDB()
+
+	g, err := NewGotlin(WithDatabase(db), WithServerExecutor(true), WithEnableServer(false))
+	require.Nil(t, err)
+
+	i1 := NewInstruction().ChangeImmediateValue(1)
+	i2 := NewInstruction().ChangeImmediateValue(2)
+	i3 := NewInstruction().ChangeToArithmetic(OpCodeAdd)
+	i4 := NewInstruction().ChangeImmediateValue(4)
+	i5 := NewInstruction().ChangeToArithmetic(OpCodeMul)
+
+	ins := []Instructioner{i1, i2, i3, i4, i5}
+
+	p := NewProgram()
+	for _, in := range ins {
+		p = p.AddInstruction(in.Instruction().ID)
+	}
+
+	p, ok := p.ChangeState(StateReady)
+	require.True(t, ok)
+
+	s, err := g.RequestScheduler(ctx)
+	require.Nil(t, err)
+
+	err = g.RunProgram(ctx, s, p, ins)
+	require.Nil(t, err)
+
+	ctx, cancel := context.WithTimeout(ctx, time.Second)
+	defer cancel()
+	ch, err := g.WaitResult(ctx)
+	require.Nil(t, err)
+
+	result := ProgramResult{}
+	select {
+	case <-time.After(time.Second):
+	case result = <-ch:
+	}
+
+	require.Nil(t, result.Error)
+	assertProgramExecuteResult(t, 12, result.Result)
+}

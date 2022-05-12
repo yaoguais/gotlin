@@ -106,7 +106,7 @@ func (g *Gotlin) RunProgram(ctx context.Context, s Scheduler, p Program, ins []I
 	return g.schedulerPool.RunProgram(ctx, s, p, ins)
 }
 
-func (g *Gotlin) WaitResult(ctx context.Context) (chan ProgramResult, chan error) {
+func (g *Gotlin) WaitResult(ctx context.Context) (chan ProgramResult, error) {
 	return g.schedulerPool.WaitResult(ctx)
 }
 

@@ -238,7 +238,7 @@ func (c *Client) RunProgram(ctx context.Context, r RunProgramOption) (RunProgram
 
 type ProgramResult struct {
 	ID     ProgramID
-	Result InstructionResult
+	Result interface{}
 	Error  error
 }
 

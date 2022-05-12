@@ -17,6 +17,11 @@ type SchedulerPool struct {
 	programs     map[ProgramID]bool
 	instructions map[InstructionID]bool
 	mu           sync.RWMutex
+	wg           sync.WaitGroup
+	pub          chan ProgramResult
+	sub          map[int]chan ProgramResult
+	i            int
+	once         sync.Once
 }
 
 func NewSchedulerPool(ep *ExecutorPool, sr SchedulerRepository, pr ProgramRepository, ir InstructionRepository) *SchedulerPool {
@@ -29,6 +34,8 @@ func NewSchedulerPool(ep *ExecutorPool, sr SchedulerRepository, pr ProgramReposi
 		schedulers:   make(map[SchedulerID]bool),
 		programs:     make(map[ProgramID]bool),
 		instructions: make(map[InstructionID]bool),
+		pub:          make(chan ProgramResult, 1024),
+		sub:          make(map[int]chan ProgramResult),
 	}
 }
 
@@ -65,14 +72,227 @@ func (sp *SchedulerPool) newScheduler(ctx context.Context) (Scheduler, error) {
 }
 
 func (sp *SchedulerPool) RunProgramSync(ctx context.Context, s Scheduler, p Program, ins []Instructioner) (interface{}, error) {
-	err := sp.RunProgram(ctx, s, p, ins)
+	p, err := sp.saveProgram(ctx, p, ins)
 	if err != nil {
 		return nil, err
 	}
 
-	p, err = sp.ProgramRepository.Find(ctx, p.ID)
+	p, err = sp.initProgram(ctx, s, p)
 	if err != nil {
 		return nil, err
+	}
+
+	err = sp.runProgramSync(ctx, s, p)
+	if err != nil {
+		return nil, err
+	}
+
+	return sp.queryResult(ctx, p)
+}
+
+func (sp *SchedulerPool) RunProgram(ctx context.Context, s Scheduler, p Program, ins []Instructioner) error {
+	p, err := sp.saveProgram(ctx, p, ins)
+	if err != nil {
+		return err
+	}
+
+	p, err = sp.initProgram(ctx, s, p)
+	if err != nil {
+		return err
+	}
+
+	sp.wg.Add(1)
+	go func() {
+		defer sp.wg.Done()
+
+		err := sp.runProgramSync(ctx, s, p)
+		if err != nil {
+			i := ProgramResult{ID: p.ID, Error: err}
+			sp.pub <- i
+			return
+		}
+
+		result, err := sp.queryResult(ctx, p)
+		i := ProgramResult{p.ID, result, err}
+		sp.pub <- i
+	}()
+
+	return nil
+
+}
+
+func (sp *SchedulerPool) WaitResult(ctx context.Context) (chan ProgramResult, error) {
+
+	sp.once.Do(func() {
+		go func() {
+			for v := range sp.pub {
+				sp.mu.RLock()
+				for _, ch := range sp.sub {
+					ch := ch
+					v := v
+					go func() {
+						ch <- v
+					}()
+				}
+				sp.mu.RUnlock()
+			}
+		}()
+	})
+
+	ch := make(chan ProgramResult, 1024)
+	sp.mu.Lock()
+	i := sp.i
+	sp.i++
+	sp.sub[i] = ch
+	sp.mu.Unlock()
+
+	go func() {
+		<-ctx.Done()
+		close(ch)
+		sp.mu.Lock()
+		delete(sp.sub, i)
+		sp.mu.Unlock()
+	}()
+
+	return ch, nil
+}
+
+func (sp *SchedulerPool) Close() error {
+	sp.wg.Wait()
+
+	sp.mu.Lock()
+	if sp.pub != nil {
+		close(sp.pub)
+		sp.pub = nil
+	}
+	sp.mu.Unlock()
+
+	return nil
+}
+
+func (sp *SchedulerPool) saveProgram(ctx context.Context, p Program, ins []Instructioner) (Program, error) {
+	sp.mu.Lock()
+	defer sp.mu.Unlock()
+
+	for _, iner := range ins {
+		in := iner.Instruction()
+		exist := sp.instructions[in.ID]
+		_, isRef := iner.(InstructionRefer)
+		if exist && !isRef {
+			return Program{}, ErrInstructionDuplicated
+		}
+	}
+
+	exist := sp.programs[p.ID]
+	if exist {
+		return Program{}, ErrProgramDuplicated
+	}
+
+	for _, iner := range ins {
+		err := sp.saveInstruction(ctx, iner)
+		if err != nil {
+			return Program{}, err
+		}
+	}
+
+	err := sp.ProgramRepository.Save(ctx, &p)
+	if err != nil {
+		return Program{}, err
+	}
+
+	for _, iner := range ins {
+		sp.instructions[iner.Instruction().ID] = true
+	}
+	sp.programs[p.ID] = true
+
+	return p, nil
+}
+
+func (sp *SchedulerPool) saveInstruction(ctx context.Context, iner Instructioner) (err error) {
+	in := iner.Instruction()
+	_, isRef := iner.(InstructionRefer)
+
+	isSave := true
+
+	if isRef {
+		_, err = sp.InstructionRepository.Find(ctx, in.ID)
+		notFound := isRecordNotFound(err)
+		if err != nil && !notFound {
+			return
+		} else if !notFound {
+			isSave = false
+		}
+	}
+
+	if isSave {
+		err = sp.InstructionRepository.Save(ctx, &in)
+		if err != nil {
+			return
+		}
+	}
+
+	return nil
+}
+
+func (sp *SchedulerPool) saveScheduler(ctx context.Context, s Scheduler, p Program) error {
+	s, err := sp.SchedulerRepository.Find(ctx, s.ID)
+	if err != nil {
+		return err
+	}
+
+	s = s.AddProgram(p.ID)
+	return sp.SchedulerRepository.Save(ctx, &s)
+}
+
+func (sp *SchedulerPool) initProgram(ctx context.Context, s Scheduler, p Program) (Program, error) {
+	sp.mu.Lock()
+	defer sp.mu.Unlock()
+
+	if !p.IsState(StateReady) {
+		return Program{}, errors.Wrap(ErrProgramState, "Not ready")
+	}
+
+	err := sp.saveScheduler(ctx, s, p)
+	if err != nil {
+		return Program{}, err
+	}
+
+	p, ok := p.ChangeState(StateRunning)
+	if !ok {
+		return Program{}, errors.Wrap(ErrProgramState, "Change to running")
+	}
+	err = sp.ProgramRepository.Save(ctx, &p)
+	return p, err
+}
+
+func (sp *SchedulerPool) runProgramSync(ctx context.Context, s Scheduler, p Program) error {
+	processor, err := sp.getProcessor(p)
+	if err != nil {
+		return err
+	}
+
+	err = processor.Process(ctx, p)
+	return errors.Wrap(err, "Process program")
+}
+
+func (sp *SchedulerPool) getProcessor(p Program) (Processor, error) {
+	if p.IsPCProcessor() {
+		return NewPCProcessor(sp.ProgramRepository, sp.InstructionRepository, sp.ExecutorPool), nil
+	}
+	if p.IsDAGProcessor() {
+		return NewDAGProcessor(sp.ProgramRepository, sp.InstructionRepository, sp.ExecutorPool), nil
+	}
+	return nil, errors.New("Processor cannot be parsed")
+}
+
+func (sp *SchedulerPool) queryResult(ctx context.Context, p Program) (interface{}, error) {
+	p, err := sp.ProgramRepository.Find(ctx, p.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	if !p.IsState(StateExit) {
+		return nil, errors.Wrap(ErrProgramState, "Is not exit")
 	}
 
 	if p.Error != nil {
@@ -110,129 +330,4 @@ func (sp *SchedulerPool) RunProgramSync(ctx context.Context, s Scheduler, p Prog
 	}
 
 	return nil, errors.New("The type of Processor is wrong")
-}
-
-func (sp *SchedulerPool) RunProgram(ctx context.Context, s Scheduler, p Program, ins []Instructioner) error {
-	sp.mu.Lock()
-	defer sp.mu.Unlock()
-
-	err := sp.loadProgram(ctx, p, ins)
-	if err != nil {
-		return err
-	}
-
-	p, err = sp.initProgram(ctx, s, p)
-	if err != nil {
-		return err
-	}
-
-	return sp.runProgram(ctx, s, p)
-}
-
-func (sp *SchedulerPool) WaitResult(ctx context.Context) (chan ProgramResult, chan error) {
-	errCh := make(chan error, 1)
-	errCh <- errors.New("Unimplemented")
-	return nil, errCh
-}
-
-func (sp *SchedulerPool) loadProgram(ctx context.Context, p Program, ins []Instructioner) error {
-	for _, iner := range ins {
-		in := iner.Instruction()
-		exist := sp.instructions[in.ID]
-		_, isRef := iner.(InstructionRefer)
-		if exist && !isRef {
-			return ErrInstructionDuplicated
-		}
-	}
-
-	exist := sp.programs[p.ID]
-	if exist {
-		return ErrSchedulerDuplicated
-	}
-
-	for _, iner := range ins {
-		err := sp.loadInstruction(ctx, iner)
-		if err != nil {
-			return err
-		}
-	}
-
-	err := sp.ProgramRepository.Save(ctx, &p)
-	if err != nil {
-		return err
-	}
-
-	sp.programs[p.ID] = true
-
-	return nil
-}
-
-func (sp *SchedulerPool) loadInstruction(ctx context.Context, iner Instructioner) (err error) {
-	in := iner.Instruction()
-	_, isRef := iner.(InstructionRefer)
-
-	isSave := true
-
-	if isRef {
-		_, err = sp.InstructionRepository.Find(ctx, in.ID)
-		notFound := isRecordNotFound(err)
-		if err != nil && !notFound {
-			return
-		} else if !notFound {
-			isSave = false
-		}
-	}
-
-	if isSave {
-		err = sp.InstructionRepository.Save(ctx, &in)
-		if err != nil {
-			return
-		}
-	}
-
-	sp.instructions[in.ID] = true
-
-	return nil
-}
-
-func (sp *SchedulerPool) initProgram(ctx context.Context, s Scheduler, p Program) (Program, error) {
-	if !p.IsState(StateReady) {
-		return Program{}, errors.Wrap(ErrProgramState, "Not ready")
-	}
-
-	s = s.AddProgram(p.ID)
-	err := sp.SchedulerRepository.Save(ctx, &s)
-	if err != nil {
-		return Program{}, err
-	}
-
-	p, ok := p.ChangeState(StateRunning)
-	if !ok {
-		return Program{}, errors.Wrap(ErrProgramState, "Change to running")
-	}
-	err = sp.ProgramRepository.Save(ctx, &p)
-	if err != nil {
-		return Program{}, err
-	}
-	return p, nil
-}
-
-func (sp *SchedulerPool) runProgram(ctx context.Context, s Scheduler, p Program) error {
-	processor, err := sp.getProcessor(p)
-	if err != nil {
-		return err
-	}
-
-	err = processor.Process(ctx, p)
-	return errors.Wrap(err, "Process program")
-}
-
-func (sp *SchedulerPool) getProcessor(p Program) (Processor, error) {
-	if p.IsPCProcessor() {
-		return NewPCProcessor(sp.ProgramRepository, sp.InstructionRepository, sp.ExecutorPool), nil
-	}
-	if p.IsDAGProcessor() {
-		return NewDAGProcessor(sp.ProgramRepository, sp.InstructionRepository, sp.ExecutorPool), nil
-	}
-	return nil, errors.New("Processor cannot be parsed")
 }
