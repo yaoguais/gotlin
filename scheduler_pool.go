@@ -131,6 +131,9 @@ func (sp *SchedulerPool) WaitResult(ctx context.Context) (chan ProgramResult, er
 					ch := ch
 					v := v
 					go func() {
+						defer func() {
+							_ = recover()
+						}()
 						ch <- v
 					}()
 				}
@@ -148,9 +151,9 @@ func (sp *SchedulerPool) WaitResult(ctx context.Context) (chan ProgramResult, er
 
 	go func() {
 		<-ctx.Done()
-		close(ch)
 		sp.mu.Lock()
 		delete(sp.sub, i)
+		close(ch)
 		sp.mu.Unlock()
 	}()
 

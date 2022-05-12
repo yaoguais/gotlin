@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS programs (
 
 CREATE TABLE IF NOT EXISTS schedulers (
     id VARCHAR(36) NOT NULL,
-    programs TEXT NOT NULL,    
+    programs LONGTEXT NOT NULL,    
     create_time bigint(20) NOT NULL,
     update_time bigint(20) NOT NULL,
     finish_time bigint(20) NOT NULL,

@@ -76,15 +76,9 @@ func main() {
 	rp := RunProgramOption{SchedulerID: res.SchedulerID, Program: p, Instructions: ins}
 	c.RunProgram(context.Background(), rp)
 
-	resultCh, errCh := c.WaitResult(context.Background())
-	for {
-		select {
-		case res := <-resultCh:
-			fmt.Printf("Program: %s, result %v\n", res.ID, res.Result)
-		case err := <-errCh:
-			fmt.Printf("Error: %v\n", err)
-		}
-	}
+	ch, _ := c.WaitResult(context.Background())
+	wr := <-ch
+	fmt.Printf("Program: %s, result %v\n", wr.ID, wr.Result)
 }
 ```
 
@@ -153,15 +147,9 @@ func main() {
 	rp := RunProgramOption{SchedulerID: res.SchedulerID, Program: p, Instructions: ins}
 	c.RunProgram(context.Background(), rp)
 
-	resultCh, errCh := c.WaitResult(context.Background())
-	for {
-		select {
-		case res := <-resultCh:
-			fmt.Printf("Program: %s, result %v\n", res.ID, res.Result)
-		case err := <-errCh:
-			fmt.Printf("Error: %v\n", err)
-		}
-	}
+	ch, _ := c.WaitResult(context.Background())
+	wr := <-ch
+	fmt.Printf("Program: %s, result %v\n", wr.ID, wr.Result)
 }
 ```
 

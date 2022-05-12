@@ -7,7 +7,9 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 	"os"
+	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -180,12 +182,16 @@ func TestGotlin_DatabaseQuery(t *testing.T) {
 
 // Perform an arithmetic calculation "( 1 + 2 ) * 4", the expected result is 12
 func TestGotlin_DAGProcessor(t *testing.T) {
-	ctx := context.Background()
-
 	db := getTestDB()
 
 	g, err := NewGotlin(WithDatabase(db), WithServerExecutor(true), WithEnableServer(false))
 	require.Nil(t, err)
+
+	testGotlinDAGProcessor(t, g)
+}
+
+func testGotlinDAGProcessor(t *testing.T, g *Gotlin) {
+	ctx := context.Background()
 
 	i1 := NewInstruction().ChangeImmediateValue(1)
 	i2 := NewInstruction().ChangeImmediateValue(2)
@@ -206,7 +212,7 @@ func TestGotlin_DAGProcessor(t *testing.T) {
 	for _, v := range ins {
 		ids = append(ids, v.Instruction().ID)
 	}
-	err = d.Add(ids...)
+	err := d.Add(ids...)
 	require.Nil(t, err)
 
 	err = d.AttachChildren(i3.ID, i1.ID, i2.ID)
@@ -496,12 +502,16 @@ func TestGotlin_InstructionRef(t *testing.T) {
 
 // Perform an arithmetic calculation "( 1 + 2 ) * 4", the expected result is 12
 func TestGotlin_WaitResult(t *testing.T) {
-	ctx := context.Background()
-
 	db := getTestDB()
 
 	g, err := NewGotlin(WithDatabase(db), WithServerExecutor(true), WithEnableServer(false))
 	require.Nil(t, err)
+
+	testGotlinWaitResult(t, g)
+}
+
+func testGotlinWaitResult(t *testing.T, g *Gotlin) {
+	ctx := context.Background()
 
 	i1 := NewInstruction().ChangeImmediateValue(1)
 	i2 := NewInstruction().ChangeImmediateValue(2)
@@ -538,4 +548,45 @@ func TestGotlin_WaitResult(t *testing.T) {
 
 	require.Nil(t, result.Error)
 	assertProgramExecuteResult(t, 12, result.Result)
+}
+
+// Perform an arithmetic calculation "( 1 + 2 ) * 4", the expected result is 12
+func TestGotlin_ZetaRunParallel(t *testing.T) {
+	db := getTestDB()
+
+	g, err := NewGotlin(WithDatabase(db), WithServerExecutor(true), WithEnableServer(false))
+	require.Nil(t, err)
+
+	wg := &sync.WaitGroup{}
+
+	for i := 0; i < 5; i++ {
+		name := fmt.Sprintf("#%d", i)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			t.Run(name, func(t *testing.T) {
+				testGotlinDAGProcessor(t, g)
+				testGotlinWaitResult(t, g)
+			})
+		}()
+	}
+	wg.Wait()
+}
+
+// Perform an arithmetic calculation "( 1 + 2 ) * 4", the expected result is 12
+func TestGotlin_ZetaRunParallel2(t *testing.T) {
+	runtime.GOMAXPROCS(runtime.NumCPU())
+	db := getTestDB()
+
+	g, err := NewGotlin(WithDatabase(db), WithServerExecutor(true), WithEnableServer(false))
+	require.Nil(t, err)
+
+	for i := 0; i < 5; i++ {
+		name := fmt.Sprintf("#%d", i)
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			testGotlinDAGProcessor(t, g)
+			testGotlinWaitResult(t, g)
+		})
+	}
 }
