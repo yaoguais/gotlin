@@ -7,12 +7,14 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 	"os"
+	"os/exec"
 	"runtime"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/pkg/profile"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"gorm.io/driver/mysql"
@@ -128,7 +130,7 @@ func TestGotlin_ProgramCounterProcessor(t *testing.T) {
 
 	p, ins := getTestProgram2(t)
 
-	s, err := g.RequestScheduler(ctx)
+	s, err := g.RequestScheduler(ctx, NewSchedulerOption())
 	require.Nil(t, err)
 
 	result, err := g.RunProgramSync(ctx, s, p, ins)
@@ -147,7 +149,7 @@ func TestGotlin_ProgramCounterProcessor_WithDBRepository(t *testing.T) {
 
 	p, ins := getTestProgram2(t)
 
-	s, err := g.RequestScheduler(ctx)
+	s, err := g.RequestScheduler(ctx, NewSchedulerOption())
 	require.Nil(t, err)
 
 	result, err := g.RunProgramSync(ctx, s, p, ins)
@@ -203,7 +205,7 @@ func TestGotlin_DatabaseQuery(t *testing.T) {
 	p, ok := p.ChangeState(StateReady)
 	require.True(t, ok)
 
-	s, err := g.RequestScheduler(ctx)
+	s, err := g.RequestScheduler(ctx, NewSchedulerOption())
 	require.Nil(t, err)
 
 	result, err := g.RunProgramSync(ctx, s, p, ins)
@@ -212,7 +214,6 @@ func TestGotlin_DatabaseQuery(t *testing.T) {
 	assertProgramExecuteResult(t, 92, result)
 }
 
-// Perform an arithmetic calculation "( 1 + 2 ) * 4", the expected result is 12
 func TestGotlin_DAGProcessor(t *testing.T) {
 	db := getTestDB()
 
@@ -227,7 +228,7 @@ func testGotlinDAGProcessor(t *testing.T, g *Gotlin) {
 
 	p, ins := getTestProgram(t)
 
-	s, err := g.RequestScheduler(ctx)
+	s, err := g.RequestScheduler(ctx, NewSchedulerOption())
 	require.Nil(t, err)
 
 	result, err := g.RunProgramSync(ctx, s, p, ins)
@@ -243,14 +244,13 @@ func BenchmarkGotlin_DAGProcessor(b *testing.B) {
 	}
 }
 
-// Perform an arithmetic calculation "( 1 + 2 ) * ( 5 - 1 )", the expected result is 12
 func benchmarkGotlinDAGProcessor(t require.TestingT) {
 	ctx := context.Background()
 
 	g, err := NewGotlin(WithServerExecutor(true), WithEnableServer(false))
 	require.Nil(t, err)
 
-	s, err := g.RequestScheduler(ctx)
+	s, err := g.RequestScheduler(ctx, NewSchedulerOption())
 	require.Nil(t, err)
 
 	p, ins := getTestProgram(t)
@@ -316,7 +316,7 @@ func TestGotlin_CollectionInstruction(t *testing.T) {
 	}
 
 	for _, q := range qs {
-		s, err := g.RequestScheduler(ctx)
+		s, err := g.RequestScheduler(ctx, NewSchedulerOption())
 		require.Nil(t, err)
 
 		converters := []QueryConverter{QueryConverterFlat}
@@ -345,7 +345,6 @@ func TestGotlin_CollectionInstruction(t *testing.T) {
 	}
 }
 
-// Perform an arithmetic calculation "( 1 + 2 ) * 4", the expected result is 12
 func TestGotlin_RemoteExecutorViaGRPC(t *testing.T) {
 	ctx := context.Background()
 
@@ -366,7 +365,7 @@ func TestGotlin_RemoteExecutorViaGRPC(t *testing.T) {
 
 	p, ins := getTestProgram(t)
 
-	s, err := g.RequestScheduler(ctx)
+	s, err := g.RequestScheduler(ctx, NewSchedulerOption())
 	require.Nil(t, err)
 
 	c, err := NewClient(WithClientGRPCOptions(grpc.WithInsecure()))
@@ -398,7 +397,6 @@ func TestGotlin_RemoteExecutorViaGRPC(t *testing.T) {
 	assertProgramExecuteResult(t, 12, result)
 }
 
-// Perform an arithmetic calculation "( 2 + 2 ) * 2", the expected result is 8
 func TestGotlin_InstructionRef(t *testing.T) {
 	ctx := context.Background()
 
@@ -439,7 +437,7 @@ func TestGotlin_InstructionRef(t *testing.T) {
 	p, ok := p.ChangeState(StateReady)
 	require.True(t, ok)
 
-	s, err := g.RequestScheduler(ctx)
+	s, err := g.RequestScheduler(ctx, NewSchedulerOption())
 	require.Nil(t, err)
 
 	result, err := g.RunProgramSync(ctx, s, p, ins)
@@ -448,7 +446,6 @@ func TestGotlin_InstructionRef(t *testing.T) {
 	assertProgramExecuteResult(t, 8, result)
 }
 
-// Perform an arithmetic calculation "( 1 + 2 ) * 4", the expected result is 12
 func TestGotlin_WaitResult(t *testing.T) {
 	db := getTestDB()
 
@@ -463,7 +460,7 @@ func testGotlinWaitResult(t *testing.T, g *Gotlin) {
 
 	p, ins := getTestProgram(t)
 
-	s, err := g.RequestScheduler(ctx)
+	s, err := g.RequestScheduler(ctx, NewSchedulerOption())
 	require.Nil(t, err)
 
 	err = g.RunProgram(ctx, s, p, ins)
@@ -494,7 +491,7 @@ func TestGotlin_RerunProgram(t *testing.T) {
 
 	p, ins := getTestProgram(t)
 
-	s, err := g.RequestScheduler(ctx)
+	s, err := g.RequestScheduler(ctx, NewSchedulerOption())
 	require.Nil(t, err)
 
 	ctx, cancel := context.WithCancel(ctx)
@@ -545,7 +542,6 @@ func TestGotlin_RerunProgram(t *testing.T) {
 	assertProgramExecuteResult(t, 12, result.Result)
 }
 
-// Perform an arithmetic calculation "( 1 + 2 ) * 4", the expected result is 12
 func TestGotlin_ZetaRunParallel(t *testing.T) {
 	db := getTestDB()
 
@@ -568,7 +564,6 @@ func TestGotlin_ZetaRunParallel(t *testing.T) {
 	wg.Wait()
 }
 
-// Perform an arithmetic calculation "( 1 + 2 ) * 4", the expected result is 12
 func TestGotlin_ZetaRunParallel2(t *testing.T) {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	db := getTestDB()
@@ -584,4 +579,36 @@ func TestGotlin_ZetaRunParallel2(t *testing.T) {
 			testGotlinWaitResult(t, g)
 		})
 	}
+}
+
+func TestGotlin_ZetaDAGProcessor_CPUProfile(t *testing.T) {
+	pp := profile.Start(profile.CPUProfile, profile.ProfilePath("."))
+
+	g, err := NewGotlin(WithServerExecutor(true), WithEnableServer(false))
+	require.Nil(t, err)
+
+	for i := 0; i < 50; i++ {
+		testGotlinDAGProcessor(t, g)
+	}
+
+	pp.Stop()
+
+	output, err := exec.Command("go", "tool", "pprof", "-hide", "^runtime", "-top", "cpu.pprof").CombinedOutput()
+	t.Logf("CPUProfile: error %v, output %s\n", err, string(output))
+}
+
+func TestGotlin_ZetaDAGProcessor_MemoryProfile(t *testing.T) {
+	pp := profile.Start(profile.MemProfile, profile.MemProfileAllocs, profile.ProfilePath("."))
+
+	g, err := NewGotlin(WithServerExecutor(true), WithEnableServer(false))
+	require.Nil(t, err)
+
+	for i := 0; i < 50; i++ {
+		testGotlinDAGProcessor(t, g)
+	}
+
+	pp.Stop()
+
+	output, err := exec.Command("go", "tool", "pprof", "-hide", "^runtime", "-top", "mem.pprof").CombinedOutput()
+	t.Logf("MemoryProfile: error %v, output %s\n", err, string(output))
 }

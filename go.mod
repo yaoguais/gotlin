@@ -6,6 +6,7 @@ require (
 	github.com/gofrs/uuid v4.2.0+incompatible
 	github.com/heimdalr/dag v0.0.0-00010101000000-000000000000
 	github.com/pkg/errors v0.9.1
+	github.com/pkg/profile v1.6.0
 	github.com/spf13/cast v1.4.1
 	github.com/stretchr/testify v1.7.0
 	github.com/urfave/cli/v2 v2.6.0

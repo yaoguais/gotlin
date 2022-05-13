@@ -211,6 +211,7 @@ func (c *Client) handleInstructions(ctx context.Context, callOptions ClientCallO
 }
 
 type RequestSchedulerOption struct {
+	SchedulerOption
 	CallOptions ClientCallOptions
 }
 
@@ -234,12 +235,6 @@ type RunProgramResult struct {
 
 func (c *Client) RunProgram(ctx context.Context, r RunProgramOption) (RunProgramResult, error) {
 	return RunProgramResult{}, errors.New("Unimplemented")
-}
-
-type ProgramResult struct {
-	ID     ProgramID
-	Result interface{}
-	Error  error
 }
 
 func (c *Client) WaitResult(ctx context.Context) (chan ProgramResult, chan error) {

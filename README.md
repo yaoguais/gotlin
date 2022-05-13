@@ -186,7 +186,7 @@ func main() {
 
 	p = p.ChangeProcessor(NewDAGProcessorContext(d, 8))
 	p, _ = p.ChangeState(StateReady)
-	s, _ := g.RequestScheduler(context.Background())
+	s, _ := g.RequestScheduler(context.Background(), NewSchedulerOption())
 	result, _ := g.RunProgramSync(context.Background(), s, p, ins)
 	fmt.Printf("Program: %s, result %v\n", p.ID, result)
 }

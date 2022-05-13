@@ -39,25 +39,33 @@ func NewSchedulerPool(ep *ExecutorPool, sr SchedulerRepository, pr ProgramReposi
 	}
 }
 
-func (sp *SchedulerPool) RequestScheduler(ctx context.Context) (Scheduler, error) {
+type SchedulerOption struct {
+	Dummy string
+}
+
+func NewSchedulerOption() SchedulerOption {
+	return SchedulerOption{Dummy: "dummy"}
+}
+
+func (sp *SchedulerPool) RequestScheduler(ctx context.Context, option SchedulerOption) (SchedulerID, error) {
 	sp.mu.Lock()
 	defer sp.mu.Unlock()
 
 	if len(sp.schedulers) == 0 {
 		s, err := sp.newScheduler(ctx)
 		if err != nil {
-			return Scheduler{}, err
+			return SchedulerID{}, err
 		}
 		sp.schedulers[s.ID] = true
-		return s, nil
+		return s.ID, nil
 	}
 
 	id := SchedulerID{}
 	for id = range sp.schedulers {
 	}
 
-	s, err := sp.SchedulerRepository.Find(ctx, id)
-	return s, errors.Wrap(err, "Find Scheduler")
+	_, err := sp.SchedulerRepository.Find(ctx, id)
+	return id, errors.Wrap(err, "Find Scheduler")
 }
 
 func (sp *SchedulerPool) newScheduler(ctx context.Context) (Scheduler, error) {
@@ -71,8 +79,13 @@ func (sp *SchedulerPool) newScheduler(ctx context.Context) (Scheduler, error) {
 	return s, errors.Wrap(err, "Save Scheduler to Repository")
 }
 
-func (sp *SchedulerPool) RunProgramSync(ctx context.Context, s Scheduler, p Program, ins []Instructioner) (interface{}, error) {
-	p, err := sp.saveProgram(ctx, p, ins)
+func (sp *SchedulerPool) RunProgramSync(ctx context.Context, sid SchedulerID, p Program, ins []Instructioner) (interface{}, error) {
+	s, err := sp.SchedulerRepository.Find(ctx, sid)
+	if err != nil {
+		return nil, err
+	}
+
+	p, err = sp.saveProgram(ctx, p, ins)
 	if err != nil {
 		return nil, err
 	}
@@ -90,8 +103,13 @@ func (sp *SchedulerPool) RunProgramSync(ctx context.Context, s Scheduler, p Prog
 	return sp.queryResult(ctx, p)
 }
 
-func (sp *SchedulerPool) RunProgram(ctx context.Context, s Scheduler, p Program, ins []Instructioner) error {
-	p, err := sp.saveProgram(ctx, p, ins)
+func (sp *SchedulerPool) RunProgram(ctx context.Context, sid SchedulerID, p Program, ins []Instructioner) error {
+	s, err := sp.SchedulerRepository.Find(ctx, sid)
+	if err != nil {
+		return err
+	}
+
+	p, err = sp.saveProgram(ctx, p, ins)
 	if err != nil {
 		return err
 	}
@@ -119,6 +137,12 @@ func (sp *SchedulerPool) RunProgram(ctx context.Context, s Scheduler, p Program,
 
 	return nil
 
+}
+
+type ProgramResult struct {
+	ID     ProgramID
+	Result interface{}
+	Error  error
 }
 
 func (sp *SchedulerPool) WaitResult(ctx context.Context) (chan ProgramResult, error) {

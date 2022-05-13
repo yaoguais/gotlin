@@ -94,15 +94,15 @@ func NewGotlin(options ...Option) (*Gotlin, error) {
 	return g, nil
 }
 
-func (g *Gotlin) RequestScheduler(ctx context.Context) (Scheduler, error) {
-	return g.schedulerPool.RequestScheduler(ctx)
+func (g *Gotlin) RequestScheduler(ctx context.Context, option SchedulerOption) (SchedulerID, error) {
+	return g.schedulerPool.RequestScheduler(ctx, option)
 }
 
-func (g *Gotlin) RunProgramSync(ctx context.Context, s Scheduler, p Program, ins []Instructioner) (interface{}, error) {
+func (g *Gotlin) RunProgramSync(ctx context.Context, s SchedulerID, p Program, ins []Instructioner) (interface{}, error) {
 	return g.schedulerPool.RunProgramSync(ctx, s, p, ins)
 }
 
-func (g *Gotlin) RunProgram(ctx context.Context, s Scheduler, p Program, ins []Instructioner) error {
+func (g *Gotlin) RunProgram(ctx context.Context, s SchedulerID, p Program, ins []Instructioner) error {
 	return g.schedulerPool.RunProgram(ctx, s, p, ins)
 }
 
