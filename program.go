@@ -62,3 +62,10 @@ func (m Program) ExitOnError(err error) Program {
 	m.FinishTime = NewTimestamp()
 	return m
 }
+
+func (m Program) Reready() Program {
+	m.State = StateReady
+	m.Error = nil
+	m.FinishTime = TimestampZero
+	return m
+}

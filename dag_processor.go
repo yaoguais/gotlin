@@ -3,6 +3,7 @@ package gotlin
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/pkg/errors"
 )
@@ -105,7 +106,13 @@ func (m *DAGProcessor) Current(ctx context.Context) (Instruction, error) {
 			return Instruction{}, m.err
 		}
 
-		id, ok := <-m.c
+		id, ok := InstructionID{}, true
+		select {
+		case id, ok = <-m.c:
+		case <-ctx.Done():
+			return Instruction{}, ctx.Err()
+		}
+
 		if !ok {
 			return Instruction{}, ErrNoMoreInstruction
 		}
@@ -252,7 +259,11 @@ func (m DAGState) Finish(exitErr error) error {
 	m.finish()
 
 	p := m.p.ExitOnError(exitErr)
-	err := m.r.Save(m.ctx, &p)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	err := m.r.Save(ctx, &p)
 	if err != nil {
 		return errors.Wrapf(err, "Exit error %v", exitErr)
 	}

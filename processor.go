@@ -2,6 +2,7 @@ package gotlin
 
 import (
 	"context"
+	"time"
 
 	"github.com/pkg/errors"
 )
@@ -242,7 +243,11 @@ func (m PCState) Args() ([]InstructionID, error) {
 
 func (m PCState) Finish(exitErr error) error {
 	p := m.p.ExitOnError(exitErr)
-	err := m.r.Save(m.ctx, &p)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	err := m.r.Save(ctx, &p)
 	if err != nil {
 		return errors.Wrapf(err, "Exit error %v", exitErr)
 	}

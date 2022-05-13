@@ -110,6 +110,10 @@ func (g *Gotlin) WaitResult(ctx context.Context) (chan ProgramResult, error) {
 	return g.schedulerPool.WaitResult(ctx)
 }
 
+func (g *Gotlin) QueryResult(ctx context.Context, p Program) (interface{}, error) {
+	return g.schedulerPool.QueryResult(ctx, p)
+}
+
 func (g *Gotlin) StartServer(ctx context.Context) (err error) {
 	if g.gs == nil {
 		return errors.New("gRPC server is not enabled")

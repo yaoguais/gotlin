@@ -1,6 +1,7 @@
 package gotlin
 
 import (
+	"bytes"
 	"encoding/json"
 	"regexp"
 	"strings"
@@ -187,6 +188,12 @@ func NewProgramCode() ProgramCode {
 func (v ProgramCode) AddInstruction(id InstructionID) ProgramCode {
 	v.Instructions = append(v.Instructions, id)
 	return v
+}
+
+func (v ProgramCode) IsEqual(v2 ProgramCode) bool {
+	s1, _ := json.Marshal(v)
+	s2, _ := json.Marshal(v2)
+	return len(s1) > 0 && bytes.Equal(s1, s2)
 }
 
 type ControlUnitType string

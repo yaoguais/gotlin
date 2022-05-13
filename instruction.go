@@ -83,6 +83,13 @@ func (m Instruction) Finish(result InstructionResult, err error) Instruction {
 	return m
 }
 
+func (m Instruction) Reready() Instruction {
+	m.State = StateReady
+	m.Error = nil
+	m.FinishTime = TimestampZero
+	return m
+}
+
 func (m Instruction) Instruction() Instruction {
 	return m
 }

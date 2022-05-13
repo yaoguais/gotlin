@@ -160,6 +160,10 @@ func (sp *SchedulerPool) WaitResult(ctx context.Context) (chan ProgramResult, er
 	return ch, nil
 }
 
+func (sp *SchedulerPool) QueryResult(ctx context.Context, p Program) (interface{}, error) {
+	return sp.queryResult(ctx, p)
+}
+
 func (sp *SchedulerPool) Close() error {
 	sp.wg.Wait()
 
@@ -176,6 +180,14 @@ func (sp *SchedulerPool) Close() error {
 func (sp *SchedulerPool) saveProgram(ctx context.Context, p Program, ins []Instructioner) (Program, error) {
 	sp.mu.Lock()
 	defer sp.mu.Unlock()
+
+	op, err := sp.ProgramRepository.Find(ctx, p.ID)
+	notFound := isRecordNotFound(err)
+	if err != nil && !notFound {
+		return Program{}, err
+	} else if !notFound {
+		return sp.resetProgram(ctx, op, ins)
+	}
 
 	for _, iner := range ins {
 		in := iner.Instruction()
@@ -198,7 +210,7 @@ func (sp *SchedulerPool) saveProgram(ctx context.Context, p Program, ins []Instr
 		}
 	}
 
-	err := sp.ProgramRepository.Save(ctx, &p)
+	err = sp.ProgramRepository.Save(ctx, &p)
 	if err != nil {
 		return Program{}, err
 	}
@@ -209,6 +221,46 @@ func (sp *SchedulerPool) saveProgram(ctx context.Context, p Program, ins []Instr
 	sp.programs[p.ID] = true
 
 	return p, nil
+}
+
+func (sp *SchedulerPool) resetProgram(ctx context.Context, p Program, ins []Instructioner) (Program, error) {
+	if !p.IsState(StateExit) {
+		return Program{}, errors.Wrap(ErrProgramState, "Not exit")
+	}
+
+	if p.Error == nil {
+		return Program{}, errors.Wrap(ErrProgramResult, "No error found")
+	}
+
+	code := NewProgramCode()
+	for _, iner := range ins {
+		code = code.AddInstruction(iner.Instruction().ID)
+	}
+
+	if !p.Code.IsEqual(code) {
+		return Program{}, errors.Wrap(ErrProgramCode, "Not same")
+	}
+
+	for _, iner := range ins {
+		in, err := sp.InstructionRepository.Find(ctx, iner.Instruction().ID)
+		if err != nil {
+			return Program{}, err
+		}
+		ok := in.IsState(StateExit) && in.Error != nil
+		if !ok {
+			continue
+		}
+		in = in.Reready()
+		err = sp.InstructionRepository.Save(ctx, &in)
+		if err != nil {
+			return Program{}, err
+		}
+	}
+
+	p = p.Reready()
+	err := sp.ProgramRepository.Save(ctx, &p)
+
+	return p, err
 }
 
 func (sp *SchedulerPool) saveInstruction(ctx context.Context, iner Instructioner) (err error) {

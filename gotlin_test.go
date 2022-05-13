@@ -52,19 +52,49 @@ func getTestDB() *gorm.DB {
 	return db
 }
 
-func assertProgramExecuteResult(t require.TestingT, excepted interface{}, actual interface{}) {
-	resultJSON, _ := json.Marshal(actual)
-	exceptedJSON, _ := json.Marshal(excepted)
-	require.Equal(t, string(exceptedJSON), string(resultJSON))
+// Perform an arithmetic calculation "( 1 + 2 ) * ( 5 - 1 )", the expected result is 12
+func getTestProgram(t require.TestingT) (Program, []Instructioner) {
+	i1 := NewInstruction().ChangeImmediateValue(1)
+	i2 := NewInstruction().ChangeImmediateValue(2)
+	i3 := NewInstruction().ChangeToArithmetic(OpCodeAdd)
+	i4 := NewInstruction().ChangeImmediateValue(5)
+	i5 := NewInstruction().ChangeImmediateValue(1)
+	i6 := NewInstruction().ChangeToArithmetic(OpCodeSub)
+	i7 := NewInstruction().ChangeToArithmetic(OpCodeMul)
+
+	ins := []Instructioner{i1, i2, i3, i4, i5, i6, i7}
+
+	p := NewProgram()
+	for _, in := range ins {
+		p = p.AddInstruction(in.Instruction().ID)
+	}
+
+	d := NewInstructionDAG()
+
+	ids := []InstructionID{}
+	for _, v := range ins {
+		ids = append(ids, v.Instruction().ID)
+	}
+	err := d.Add(ids...)
+	require.Nil(t, err)
+
+	err = d.AttachChildren(i3.ID, i1.ID, i2.ID)
+	require.Nil(t, err)
+	err = d.AttachChildren(i6.ID, i4.ID, i5.ID)
+	require.Nil(t, err)
+	err = d.AttachChildren(i7.ID, i3.ID, i6.ID)
+	require.Nil(t, err)
+
+	p = p.ChangeProcessor(NewDAGProcessorContext(d, 8))
+
+	p, ok := p.ChangeState(StateReady)
+	require.True(t, ok)
+
+	return p, ins
 }
 
 // Perform an arithmetic calculation "( 1 + 2 ) * 4", the expected result is 12
-func TestGotlin_ProgramCounterProcessor(t *testing.T) {
-	ctx := context.Background()
-
-	g, err := NewGotlin(WithServerExecutor(true), WithEnableServer(false))
-	require.Nil(t, err)
-
+func getTestProgram2(t require.TestingT) (Program, []Instructioner) {
 	i1 := NewInstruction().ChangeImmediateValue(1)
 	i2 := NewInstruction().ChangeImmediateValue(2)
 	i3 := NewInstruction().ChangeToArithmetic(OpCodeAdd)
@@ -80,6 +110,23 @@ func TestGotlin_ProgramCounterProcessor(t *testing.T) {
 
 	p, ok := p.ChangeState(StateReady)
 	require.True(t, ok)
+
+	return p, ins
+}
+
+func assertProgramExecuteResult(t require.TestingT, excepted interface{}, actual interface{}) {
+	resultJSON, _ := json.Marshal(actual)
+	exceptedJSON, _ := json.Marshal(excepted)
+	require.Equal(t, string(exceptedJSON), string(resultJSON))
+}
+
+func TestGotlin_ProgramCounterProcessor(t *testing.T) {
+	ctx := context.Background()
+
+	g, err := NewGotlin(WithServerExecutor(true), WithEnableServer(false))
+	require.Nil(t, err)
+
+	p, ins := getTestProgram2(t)
 
 	s, err := g.RequestScheduler(ctx)
 	require.Nil(t, err)
@@ -90,7 +137,6 @@ func TestGotlin_ProgramCounterProcessor(t *testing.T) {
 	assertProgramExecuteResult(t, 12, result)
 }
 
-// Perform an arithmetic calculation "( 1 + 2 ) * 4", the expected result is 12
 func TestGotlin_ProgramCounterProcessor_WithDBRepository(t *testing.T) {
 	ctx := context.Background()
 
@@ -99,21 +145,7 @@ func TestGotlin_ProgramCounterProcessor_WithDBRepository(t *testing.T) {
 	g, err := NewGotlin(WithDatabase(db), WithServerExecutor(true), WithEnableServer(false))
 	require.Nil(t, err)
 
-	i1 := NewInstruction().ChangeImmediateValue(1)
-	i2 := NewInstruction().ChangeImmediateValue(2)
-	i3 := NewInstruction().ChangeToArithmetic(OpCodeAdd)
-	i4 := NewInstruction().ChangeImmediateValue(4)
-	i5 := NewInstruction().ChangeToArithmetic(OpCodeMul)
-
-	ins := []Instructioner{i1, i2, i3, i4, i5}
-
-	p := NewProgram()
-	for _, in := range ins {
-		p = p.AddInstruction(in.Instruction().ID)
-	}
-
-	p, ok := p.ChangeState(StateReady)
-	require.True(t, ok)
+	p, ins := getTestProgram2(t)
 
 	s, err := g.RequestScheduler(ctx)
 	require.Nil(t, err)
@@ -193,37 +225,7 @@ func TestGotlin_DAGProcessor(t *testing.T) {
 func testGotlinDAGProcessor(t *testing.T, g *Gotlin) {
 	ctx := context.Background()
 
-	i1 := NewInstruction().ChangeImmediateValue(1)
-	i2 := NewInstruction().ChangeImmediateValue(2)
-	i3 := NewInstruction().ChangeToArithmetic(OpCodeAdd)
-	i4 := NewInstruction().ChangeImmediateValue(4)
-	i5 := NewInstruction().ChangeToArithmetic(OpCodeMul)
-
-	ins := []Instructioner{i1, i2, i3, i4, i5}
-
-	p := NewProgram()
-	for _, in := range ins {
-		p = p.AddInstruction(in.Instruction().ID)
-	}
-
-	d := NewInstructionDAG()
-
-	ids := []InstructionID{}
-	for _, v := range ins {
-		ids = append(ids, v.Instruction().ID)
-	}
-	err := d.Add(ids...)
-	require.Nil(t, err)
-
-	err = d.AttachChildren(i3.ID, i1.ID, i2.ID)
-	require.Nil(t, err)
-	err = d.AttachChildren(i5.ID, i3.ID, i4.ID)
-	require.Nil(t, err)
-
-	p = p.ChangeProcessor(NewDAGProcessorContext(d, 3))
-
-	p, ok := p.ChangeState(StateReady)
-	require.True(t, ok)
+	p, ins := getTestProgram(t)
 
 	s, err := g.RequestScheduler(ctx)
 	require.Nil(t, err)
@@ -248,44 +250,10 @@ func benchmarkGotlinDAGProcessor(t require.TestingT) {
 	g, err := NewGotlin(WithServerExecutor(true), WithEnableServer(false))
 	require.Nil(t, err)
 
-	i1 := NewInstruction().ChangeImmediateValue(1)
-	i2 := NewInstruction().ChangeImmediateValue(2)
-	i3 := NewInstruction().ChangeToArithmetic(OpCodeAdd)
-	i4 := NewInstruction().ChangeImmediateValue(5)
-	i5 := NewInstruction().ChangeImmediateValue(1)
-	i6 := NewInstruction().ChangeToArithmetic(OpCodeSub)
-	i7 := NewInstruction().ChangeToArithmetic(OpCodeMul)
-
-	ins := []Instructioner{i1, i2, i3, i4, i5, i6, i7}
-
-	p := NewProgram()
-	for _, in := range ins {
-		p = p.AddInstruction(in.Instruction().ID)
-	}
-
-	d := NewInstructionDAG()
-
-	ids := []InstructionID{}
-	for _, v := range ins {
-		ids = append(ids, v.Instruction().ID)
-	}
-	err = d.Add(ids...)
-	require.Nil(t, err)
-
-	err = d.AttachChildren(i3.ID, i1.ID, i2.ID)
-	require.Nil(t, err)
-	err = d.AttachChildren(i6.ID, i4.ID, i5.ID)
-	require.Nil(t, err)
-	err = d.AttachChildren(i7.ID, i3.ID, i6.ID)
-	require.Nil(t, err)
-
-	p = p.ChangeProcessor(NewDAGProcessorContext(d, 8))
-
-	p, ok := p.ChangeState(StateReady)
-	require.True(t, ok)
-
 	s, err := g.RequestScheduler(ctx)
 	require.Nil(t, err)
+
+	p, ins := getTestProgram(t)
 
 	result, err := g.RunProgramSync(ctx, s, p, ins)
 	require.Nil(t, err)
@@ -396,21 +364,7 @@ func TestGotlin_RemoteExecutorViaGRPC(t *testing.T) {
 
 	time.Sleep(100 * time.Millisecond)
 
-	i1 := NewInstruction().ChangeImmediateValue(1)
-	i2 := NewInstruction().ChangeImmediateValue(2)
-	i3 := NewInstruction().ChangeToArithmetic(OpCodeAdd)
-	i4 := NewInstruction().ChangeImmediateValue(4)
-	i5 := NewInstruction().ChangeToArithmetic(OpCodeMul)
-
-	ins := []Instructioner{i1, i2, i3, i4, i5}
-
-	p := NewProgram()
-	for _, in := range ins {
-		p = p.AddInstruction(in.Instruction().ID)
-	}
-
-	p, ok := p.ChangeState(StateReady)
-	require.True(t, ok)
+	p, ins := getTestProgram(t)
 
 	s, err := g.RequestScheduler(ctx)
 	require.Nil(t, err)
@@ -438,13 +392,7 @@ func TestGotlin_RemoteExecutorViaGRPC(t *testing.T) {
 
 	time.Sleep(3000 * time.Millisecond)
 
-	p, err = g.ProgramRepository.Find(ctx, p.ID)
-	require.Nil(t, err)
-	id, err := ParseInstructionID(p.Processor.Data)
-	require.Nil(t, err)
-	in, err := g.InstructionRepository.Find(ctx, id)
-	require.Nil(t, err)
-	result, err := in.InstructionResult(ctx)
+	result, err := g.QueryResult(ctx, p)
 	require.Nil(t, err)
 
 	assertProgramExecuteResult(t, 12, result)
@@ -513,21 +461,7 @@ func TestGotlin_WaitResult(t *testing.T) {
 func testGotlinWaitResult(t *testing.T, g *Gotlin) {
 	ctx := context.Background()
 
-	i1 := NewInstruction().ChangeImmediateValue(1)
-	i2 := NewInstruction().ChangeImmediateValue(2)
-	i3 := NewInstruction().ChangeToArithmetic(OpCodeAdd)
-	i4 := NewInstruction().ChangeImmediateValue(4)
-	i5 := NewInstruction().ChangeToArithmetic(OpCodeMul)
-
-	ins := []Instructioner{i1, i2, i3, i4, i5}
-
-	p := NewProgram()
-	for _, in := range ins {
-		p = p.AddInstruction(in.Instruction().ID)
-	}
-
-	p, ok := p.ChangeState(StateReady)
-	require.True(t, ok)
+	p, ins := getTestProgram(t)
 
 	s, err := g.RequestScheduler(ctx)
 	require.Nil(t, err)
@@ -541,6 +475,67 @@ func testGotlinWaitResult(t *testing.T, g *Gotlin) {
 	require.Nil(t, err)
 
 	result := ProgramResult{}
+	select {
+	case <-time.After(time.Second):
+	case result = <-ch:
+	}
+
+	require.Nil(t, result.Error)
+	assertProgramExecuteResult(t, 12, result.Result)
+}
+
+func TestGotlin_RerunProgram(t *testing.T) {
+	ctx := context.Background()
+
+	db := getTestDB()
+
+	g, err := NewGotlin(WithDatabase(db), WithServerExecutor(true), WithEnableServer(false))
+	require.Nil(t, err)
+
+	p, ins := getTestProgram(t)
+
+	s, err := g.RequestScheduler(ctx)
+	require.Nil(t, err)
+
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	err = g.RunProgram(ctx, s, p, ins)
+	require.Nil(t, err)
+
+	go func() {
+		for {
+			id := ins[0].Instruction().ID
+			in, err := g.InstructionRepository.Find(ctx, id)
+			require.Nil(t, err)
+			if in.IsState(StateExit) {
+				cancel()
+				return
+			}
+		}
+	}()
+
+	ch, err := g.WaitResult(context.Background())
+	require.Nil(t, err)
+
+	result := ProgramResult{}
+	select {
+	case <-time.After(time.Second):
+	case result = <-ch:
+	}
+
+	require.NotNil(t, result.Error)
+
+	ctx = context.Background()
+	err = g.RunProgram(ctx, s, p, ins)
+	require.Nil(t, err)
+
+	ctx, cancel = context.WithTimeout(ctx, time.Second)
+	defer cancel()
+	ch, err = g.WaitResult(ctx)
+	require.Nil(t, err)
+
+	result = ProgramResult{}
 	select {
 	case <-time.After(time.Second):
 	case result = <-ch:
