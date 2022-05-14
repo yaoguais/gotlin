@@ -132,6 +132,10 @@ func ParseOpCode(s string) (OpCode, error) {
 	return OpCode(s), nil
 }
 
+func (v OpCode) String() string {
+	return string(v)
+}
+
 type State string
 
 const (

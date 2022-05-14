@@ -87,7 +87,7 @@ func (r SchedulerDBRepository) Find(ctx context.Context, id SchedulerID) (m Sche
 	e := SchedulerEntity{}
 	err = r.db.WithContext(ctx).Where("id = ?", id.String()).First(&e).Error
 	if err != nil {
-		return Scheduler{}, errors.Wrap(ErrNotFound, err.Error())
+		return Scheduler{}, errors.Wrapf(ErrNotFound, "Scheduler %s, %v", id.String(), err.Error())
 	}
 	return SchedulerEntityConverter{}.ToModel(e)
 }
@@ -205,7 +205,7 @@ func (r ProgramDBRepository) Find(ctx context.Context, id ProgramID) (m Program,
 	e := ProgramEntity{}
 	err = r.db.WithContext(ctx).Where("id = ?", id.String()).First(&e).Error
 	if err != nil {
-		return Program{}, errors.Wrap(ErrNotFound, err.Error())
+		return Program{}, errors.Wrapf(ErrNotFound, "Program %s, %v", id.String(), err.Error())
 	}
 	return ProgramEntityConverter{}.ToModel(e)
 }
@@ -352,7 +352,7 @@ func (r InstructionDBRepository) Find(ctx context.Context, id InstructionID) (m 
 	e := InstructionEntity{}
 	err = r.db.WithContext(ctx).Where("id = ?", id.String()).First(&e).Error
 	if err != nil {
-		return Instruction{}, errors.Wrap(ErrNotFound, err.Error())
+		return Instruction{}, errors.Wrapf(ErrNotFound, "Instruction %s, %v", id.String(), err.Error())
 	}
 	return InstructionEntityConverter{}.ToModel(e)
 }
@@ -503,7 +503,7 @@ func (r ExecutorDBRepository) Find(ctx context.Context, id ExecutorID) (m Execut
 	e := ExecutorEntity{}
 	err = r.db.WithContext(ctx).Where("id = ?", id.String()).First(&e).Error
 	if err != nil {
-		return Executor{}, errors.Wrap(ErrNotFound, err.Error())
+		return Executor{}, errors.Wrapf(ErrNotFound, "Executor %s, %v", id.String(), err.Error())
 	}
 	return ExecutorEntityConverter{}.ToModel(e)
 }
@@ -654,7 +654,7 @@ func (r SchedulerMemoryRepository) Find(ctx context.Context, id SchedulerID) (Sc
 	m, ok := r.m[id]
 	r.mu.RUnlock()
 	if !ok {
-		return Scheduler{}, ErrNotFound
+		return Scheduler{}, errors.Wrapf(ErrNotFound, "Scheduler %s", id.String())
 	}
 	return m, nil
 }
@@ -697,7 +697,7 @@ func (r ProgramMemoryRepository) Find(ctx context.Context, id ProgramID) (Progra
 	m, ok := r.m[id]
 	r.mu.RUnlock()
 	if !ok {
-		return Program{}, ErrNotFound
+		return Program{}, errors.Wrapf(ErrNotFound, "Program %s", id.String())
 	}
 	return m, nil
 }
@@ -740,7 +740,7 @@ func (r InstructionMemoryRepository) Find(ctx context.Context, id InstructionID)
 	m, ok := r.m[id]
 	r.mu.RUnlock()
 	if !ok {
-		return Instruction{}, ErrNotFound
+		return Instruction{}, errors.Wrapf(ErrNotFound, "Instruction %s", id.String())
 	}
 	return m, nil
 }
@@ -783,7 +783,7 @@ func (r ExecutorMemoryRepository) Find(ctx context.Context, id ExecutorID) (Exec
 	m, ok := r.m[id]
 	r.mu.RUnlock()
 	if !ok {
-		return Executor{}, ErrNotFound
+		return Executor{}, errors.Wrapf(ErrNotFound, "Executor %s", id.String())
 	}
 	return m, nil
 }

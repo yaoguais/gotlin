@@ -73,15 +73,31 @@ message CommandToRemote {
 }
 
 message RequestSchedulerRequest {
-
+    string dummy = 1;
 }
 
 message RequestSchedulerResponse {
     string id = 1;
 }
 
-message RunProgramRequest {
+message ProgramPb {
+    string id = 1;
+    bytes code = 2;
+    bytes processor = 3;
+}
 
+message InstructionPb {
+    string id = 1;
+    string id2 = 2;
+    string opcode = 3;
+    bytes operand = 4;
+    bytes result = 5;
+}
+
+message RunProgramRequest {
+    string scheduler_id = 1;
+    ProgramPb program = 2;
+    repeated InstructionPb instructions = 3;
 }
 
 message RunProgramResponse {
@@ -93,5 +109,7 @@ message WaitResultRequest {
 }
 
 message WaitResultResponse {
-
+    string id = 1;
+    bytes result = 2;
+    string error = 3;
 }

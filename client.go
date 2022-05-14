@@ -3,6 +3,7 @@ package gotlin
 import (
 	"context"
 	"encoding/json"
+	"io"
 
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
@@ -89,26 +90,13 @@ type UnregisterExecutorOption struct {
 }
 
 func (c *Client) RegisterExecutor(ctx context.Context, r RegisterExecutorOption) error {
-	req := &RegisterExecutorRequest{
-		Id:   r.ID.String(),
-		Host: r.Host.String(),
-	}
-	for _, v := range r.Labels {
-		req.Labels = append(req.Labels, &RegisterExecutorRequest_Label{Key: v.Key, Value: v.Value})
-	}
+	req := pbConverter{}.RegisterExecutorOptionToPb(r)
 	_, err := c.c.RegisterExecutor(ctx, req, r.CallOptions.GRPCOption()...)
 	return errors.Wrap(err, "Register Executor")
 }
 
 func (c *Client) UnregisterExecutor(ctx context.Context, r UnregisterExecutorOption) error {
-	var error string
-	if r.Error != nil {
-		error = r.Error.Error()
-	}
-	req := &UnregisterExecutorRequest{
-		Id:    r.ID.String(),
-		Error: error,
-	}
+	req := pbConverter{}.UnregisterExecutorOptionToPb(r)
 	_, err := c.c.UnregisterExecutor(ctx, req, r.CallOptions.GRPCOption()...)
 	return errors.Wrap(err, "Unregister Executor")
 }
@@ -215,32 +203,64 @@ type RequestSchedulerOption struct {
 	CallOptions ClientCallOptions
 }
 
-type RequestSchedulerResult struct {
-	SchedulerID SchedulerID
-}
-
-func (c *Client) RequestScheduler(ctx context.Context, r RequestSchedulerOption) (RequestSchedulerResult, error) {
-	return RequestSchedulerResult{}, errors.New("Unimplemented")
+func (c *Client) RequestScheduler(ctx context.Context, r RequestSchedulerOption) (SchedulerID, error) {
+	req := pbConverter{}.RequestSchedulerOptionToPb(r)
+	resp, err := c.c.RequestScheduler(ctx, req, r.CallOptions.GRPCOption()...)
+	if err != nil {
+		return SchedulerID{}, err
+	}
+	return ParseSchedulerID(resp.GetId())
 }
 
 type RunProgramOption struct {
 	SchedulerID  SchedulerID
 	Program      Program
-	Instructions []Instruction
+	Instructions []Instructioner
 	CallOptions  ClientCallOptions
 }
 
-type RunProgramResult struct {
+func (c *Client) RunProgram(ctx context.Context, r RunProgramOption) error {
+	req := pbConverter{}.RunProgramOptionToPb(r)
+	_, err := c.c.RunProgram(ctx, req, r.CallOptions.GRPCOption()...)
+	return err
 }
 
-func (c *Client) RunProgram(ctx context.Context, r RunProgramOption) (RunProgramResult, error) {
-	return RunProgramResult{}, errors.New("Unimplemented")
-}
+func (c *Client) WaitResult(ctx context.Context) (chan ProgramResult, error) {
+	stream, err := c.c.WaitResult(ctx, &WaitResultRequest{})
+	if err != nil {
+		return nil, err
+	}
 
-func (c *Client) WaitResult(ctx context.Context) (chan ProgramResult, chan error) {
-	errCh := make(chan error, 1)
-	errCh <- errors.New("Unimplemented")
-	return nil, errCh
+	ch := make(chan ProgramResult)
+
+	go func() {
+		defer close(ch)
+
+		pc := pbConverter{}
+
+		for {
+			select {
+			case <-ctx.Done():
+				ch <- ProgramResult{Error: errors.Wrap(ctx.Err(), "From Client")}
+				return
+			default:
+			}
+
+			m, err := stream.Recv()
+			if err == io.EOF {
+				return
+			} else if err == context.Canceled {
+				ch <- ProgramResult{Error: errors.Wrap(err, "From Server")}
+				return
+			} else if err != nil {
+				ch <- ProgramResult{Error: errors.Wrap(ErrProgramExitUnexpectedly, err.Error())}
+				return
+			}
+			ch <- pc.WaitResultResponseToModel(m)
+		}
+	}()
+
+	return ch, nil
 }
 
 func (c *Client) Shutdown() error {
@@ -250,4 +270,167 @@ func (c *Client) Shutdown() error {
 		return err
 	}
 	return nil
+}
+
+type pbConverter struct {
+}
+
+func (pbConverter) RegisterExecutorOptionToPb(r RegisterExecutorOption) *RegisterExecutorRequest {
+	req := &RegisterExecutorRequest{
+		Id:   r.ID.String(),
+		Host: r.Host.String(),
+	}
+	for _, v := range r.Labels {
+		req.Labels = append(req.Labels, &RegisterExecutorRequest_Label{Key: v.Key, Value: v.Value})
+	}
+	return req
+}
+
+func (pbConverter) UnregisterExecutorOptionToPb(r UnregisterExecutorOption) *UnregisterExecutorRequest {
+	var error string
+	if r.Error != nil {
+		error = r.Error.Error()
+	}
+	req := &UnregisterExecutorRequest{
+		Id:    r.ID.String(),
+		Error: error,
+	}
+	return req
+}
+
+func (pbConverter) RequestSchedulerOptionToPb(r RequestSchedulerOption) *RequestSchedulerRequest {
+	req := &RequestSchedulerRequest{
+		Dummy: r.Dummy,
+	}
+	return req
+}
+
+func (pbConverter) RequestSchedulerRequestToModel(r *RequestSchedulerRequest) SchedulerOption {
+	return SchedulerOption{
+		Dummy: r.Dummy,
+	}
+}
+
+func (pbConverter) ProgramToPb(r Program) *ProgramPb {
+	code, _ := json.Marshal(r.Code)
+	processor, _ := json.Marshal(r.Processor)
+	return &ProgramPb{
+		Id:        r.ID.String(),
+		Code:      code,
+		Processor: processor,
+	}
+}
+
+func (pbConverter) ProgramToModel(r *ProgramPb) Program {
+	p := NewProgram()
+
+	id, _ := ParseProgramID(r.Id)
+	p.ID = id
+
+	code := ProgramCode{}
+	_ = json.Unmarshal(r.Code, &code)
+	p.Code = code
+
+	processor := ProcessorContext{}
+	_ = json.Unmarshal(r.Processor, &processor)
+	p.Processor = processor
+
+	p, _ = p.ChangeState(StateReady)
+	return p
+}
+
+func (pbConverter) InstructionerToPb(r Instructioner) *InstructionPb {
+	in := r.Instruction()
+	_, isRef := r.(InstructionRefer)
+	operand, _ := json.Marshal(in.Operand)
+	result, _ := json.Marshal(in.Result)
+	req := &InstructionPb{
+		Id:      in.ID.String(),
+		Opcode:  in.OpCode.String(),
+		Operand: operand,
+		Result:  result,
+	}
+	if isRef {
+		id2, _ := json.Marshal(in.ID)
+		req.Id2 = string(id2)
+	}
+	return req
+}
+
+func (pbConverter) InstructionToModel(r *InstructionPb) Instructioner {
+	id, _ := ParseInstructionID(r.Id)
+
+	in := NewInstruction()
+	in.ID = id
+	in.OpCode = OpCode(r.Opcode)
+
+	operand := Operand{}
+	_ = json.Unmarshal(r.Operand, &operand)
+	in.Operand = operand
+
+	result := InstructionResult{}
+	_ = json.Unmarshal(r.Result, &result)
+	in.Result = result
+
+	if r.Id2 == "" {
+		return in
+	}
+
+	var id2 InstructionID
+	_ = json.Unmarshal([]byte(r.Id2), &id2)
+	in.ID = id2
+	return in
+
+}
+
+func (c pbConverter) InstructionersToPb(rs []Instructioner) []*InstructionPb {
+	req := make([]*InstructionPb, 0, len(rs))
+	for _, r := range rs {
+		req = append(req, c.InstructionerToPb(r))
+	}
+	return req
+}
+
+func (c pbConverter) InstructionToModels(rs []*InstructionPb) []Instructioner {
+	ms := make([]Instructioner, 0, len(rs))
+	for _, r := range rs {
+		ms = append(ms, c.InstructionToModel(r))
+	}
+	return ms
+}
+
+func (c pbConverter) RunProgramOptionToPb(r RunProgramOption) *RunProgramRequest {
+	req := &RunProgramRequest{
+		SchedulerId:  r.SchedulerID.String(),
+		Program:      c.ProgramToPb(r.Program),
+		Instructions: c.InstructionersToPb(r.Instructions),
+	}
+	return req
+}
+
+func (pbConverter) WaitResultResponseToModel(r *WaitResultResponse) ProgramResult {
+	id, _ := ParseProgramID(r.GetId())
+	var err error
+	if r.Error != "" {
+		err = errors.New(r.Error)
+	}
+	return ProgramResult{
+		ID:     id,
+		Result: r.Result,
+		Error:  err,
+	}
+}
+
+func (pbConverter) WaitResultResponseFromModel(r ProgramResult) *WaitResultResponse {
+	var error string
+	if r.Error != nil {
+		error = r.Error.Error()
+	}
+	result, _ := json.Marshal(r.Result)
+
+	return &WaitResultResponse{
+		Id:     r.ID.String(),
+		Error:  error,
+		Result: result,
+	}
 }

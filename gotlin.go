@@ -65,9 +65,9 @@ func NewGotlin(options ...Option) (*Gotlin, error) {
 		ProgramRepository:     NewProgramMemoryRepository(),
 		InstructionRepository: NewInstructionMemoryRepository(),
 		ExecutorRepository:    NewExecutorMemoryRepository(),
-		EnableServer:          true,
+		EnableServer:          false,
 		ServerAddress:         ":9527",
-		ServerExecutor:        false,
+		ServerExecutor:        true,
 		GRPCOption:            []grpc.ServerOption{},
 	}
 

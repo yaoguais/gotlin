@@ -136,7 +136,6 @@ func (sp *SchedulerPool) RunProgram(ctx context.Context, sid SchedulerID, p Prog
 	}()
 
 	return nil
-
 }
 
 type ProgramResult struct {

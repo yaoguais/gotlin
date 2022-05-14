@@ -91,14 +91,44 @@ func (s *serverService) ExecuteCommand(stream ServerService_ExecuteCommandServer
 	}
 }
 
-func (s *serverService) RequestScheduler(context.Context, *RequestSchedulerRequest) (*RequestSchedulerResponse, error) {
-	return &RequestSchedulerResponse{}, nil
+func (s *serverService) RequestScheduler(ctx context.Context, r *RequestSchedulerRequest) (*RequestSchedulerResponse, error) {
+	option := pbConverter{}.RequestSchedulerRequestToModel(r)
+	id, err := s.g.RequestScheduler(ctx, option)
+	if err != nil {
+		return nil, err
+	}
+	return &RequestSchedulerResponse{
+		Id: id.String(),
+	}, nil
 }
 
-func (s *serverService) RunProgram(context.Context, *RunProgramRequest) (*RunProgramResponse, error) {
+func (s *serverService) RunProgram(ctx context.Context, r *RunProgramRequest) (*RunProgramResponse, error) {
+	pc := pbConverter{}
+	id, _ := ParseSchedulerID(r.SchedulerId)
+	p := pc.ProgramToModel(r.Program)
+	ins := pc.InstructionToModels(r.Instructions)
+
+	err := s.g.RunProgram(context.Background(), id, p, ins)
+	if err != nil {
+		return nil, err
+	}
 	return &RunProgramResponse{}, nil
 }
 
-func (s *serverService) WaitResult(*WaitResultRequest, ServerService_WaitResultServer) error {
+func (s *serverService) WaitResult(r *WaitResultRequest, stream ServerService_WaitResultServer) error {
+	ctx := stream.Context()
+	ch, err := s.g.WaitResult(ctx)
+	if err != nil {
+		return err
+	}
+
+	pc := pbConverter{}
+	for result := range ch {
+		err := stream.Send(pc.WaitResultResponseFromModel(result))
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }

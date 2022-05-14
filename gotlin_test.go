@@ -397,6 +397,52 @@ func TestGotlin_RemoteExecutorViaGRPC(t *testing.T) {
 	assertProgramExecuteResult(t, 12, result)
 }
 
+func TestGotlin_RemoteClientViaGRPC(t *testing.T) {
+	time.Sleep(time.Second)
+
+	ctx := context.Background()
+
+	db := getTestDB()
+
+	g, err := NewGotlin(WithDatabase(db), WithServerExecutor(true), WithEnableServer(true))
+	require.Nil(t, err)
+
+	go func() {
+		err := g.StartServer(ctx)
+		if err != nil {
+			panic(err)
+		}
+	}()
+	defer g.StopServer(false)
+
+	time.Sleep(time.Second)
+
+	p, ins := getTestProgram(t)
+
+	c, err := NewClient(WithClientGRPCOptions(grpc.WithInsecure()))
+	require.Nil(t, err)
+
+	s, err := c.RequestScheduler(ctx, RequestSchedulerOption{})
+	require.Nil(t, err)
+
+	err = c.RunProgram(ctx, RunProgramOption{SchedulerID: s, Program: p, Instructions: ins})
+	require.Nil(t, err)
+
+	ch, err := c.WaitResult(context.Background())
+	require.Nil(t, err)
+
+	result := ProgramResult{}
+	select {
+	case <-time.After(time.Second):
+	case result = <-ch:
+	}
+
+	require.Nil(t, result.Error)
+	value := 0
+	_ = json.Unmarshal(result.Result.([]byte), &value)
+	assertProgramExecuteResult(t, 12, value)
+}
+
 func TestGotlin_InstructionRef(t *testing.T) {
 	ctx := context.Background()
 

@@ -52,17 +52,17 @@ func main() {
 	i3 := NewInstruction().ChangeToArithmetic(OpCodeAdd)
 	i4 := NewInstruction().ChangeImmediateValue(4)
 	i5 := NewInstruction().ChangeToArithmetic(OpCodeMul)
-	ins := []Instruction{i1, i2, i3, i4, i5}
+	ins := []Instructioner{i1, i2, i3, i4, i5}
 
 	p := NewProgram()
 	for _, in := range ins {
-		p = p.AddInstruction(in.ID)
+		p = p.AddInstruction(in.Instruction().ID)
 	}
 
 	d := NewInstructionDAG()
 	ids := []InstructionID{}
 	for _, v := range ins {
-		ids = append(ids, v.ID)
+		ids = append(ids, v.Instruction().ID)
 	}
 	d.Add(ids...)
 	d.AttachChildren(i3.ID, i1.ID, i2.ID)
@@ -72,8 +72,8 @@ func main() {
 	p = p.ChangeProcessor(NewDAGProcessorContext(d, core))
 
 	c, _ := NewClient()
-	res, _ := c.RequestScheduler(context.Background(), RequestSchedulerOption{})
-	rp := RunProgramOption{SchedulerID: res.SchedulerID, Program: p, Instructions: ins}
+	s, _ := c.RequestScheduler(context.Background(), RequestSchedulerOption{})
+	rp := RunProgramOption{SchedulerID: s, Program: p, Instructions: ins}
 	c.RunProgram(context.Background(), rp)
 
 	ch, _ := c.WaitResult(context.Background())
@@ -89,7 +89,7 @@ func main() {
 	instructionSet := NewInstructionSet()
 	customInstructionHandler := InstructionHandler{
 		OpCode: OpCode("RETURN9527"),
-		Executor: func(context.Context, op Instruction,
+		Executor: func(ctx context.Context, op Instruction,
 			args ...Instruction) (InstructionResult, error) {
 			return NewRegisterResult(9527), nil
 		},
