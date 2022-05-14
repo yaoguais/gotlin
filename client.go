@@ -277,8 +277,7 @@ type pbConverter struct {
 
 func (pbConverter) RegisterExecutorOptionToPb(r RegisterExecutorOption) *RegisterExecutorRequest {
 	req := &RegisterExecutorRequest{
-		Id:   r.ID.String(),
-		Host: r.Host.String(),
+		Id: r.ID.String(),
 	}
 	for _, v := range r.Labels {
 		req.Labels = append(req.Labels, &RegisterExecutorRequest_Label{Key: v.Key, Value: v.Value})

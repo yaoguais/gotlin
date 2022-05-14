@@ -360,6 +360,13 @@ type Label struct {
 func NewLabel(k, v string) Label {
 	return Label{k, v}
 }
+func NewDefaultOpCodeLabel() Label {
+	opcodes := []string{}
+	for _, v := range DefaultInstructionHandlers {
+		opcodes = append(opcodes, string(v.OpCode))
+	}
+	return NewLabel(OpCodeLabelKey, strings.Join(opcodes, ","))
+}
 
 type Host string
 

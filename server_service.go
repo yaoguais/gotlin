@@ -25,8 +25,8 @@ func (s *serverService) RegisterExecutor(ctx context.Context, req *RegisterExecu
 	if !ok {
 		return nil, errors.Errorf("Unrecognized client address")
 	}
+	req.Host = p.Addr.String()
 	executor, err := newExecutorFromClient(req)
-	executor.Host = Host(p.Addr.String()) // TODO fix it
 	if err != nil {
 		return
 	}

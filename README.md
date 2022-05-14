@@ -25,8 +25,16 @@ $ gotlin start
 Start a compute node with a built-in instruction set.
 
 ```
-$ gotlin --compute-node start
+$ gotlin compute
 ```
+
+Submit a task "(1+2)\*4" to the service node.
+
+```
+$ gotlin submit --program="@program.json"
+```
+
+Output: Program evaluates to 12
 
 ## Contents
 

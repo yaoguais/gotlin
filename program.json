@@ -1,0 +1,70 @@
+{
+  "id": "1",
+  "code": [
+    {
+      "id": "1",
+      "opcode": "MOV",
+      "operand": {
+        "Type": "Immediate",
+        "Value": {
+          "Value": 1
+        }
+      }
+    },
+    {
+      "id": "2",
+      "opcode": "MOV",
+      "operand": {
+        "Type": "Immediate",
+        "Value": {
+          "Value": 2
+        }
+      }
+    },
+    {
+      "id": "3",
+      "opcode": "ADD",
+      "operand": {
+        "Type": "Empty",
+        "Value": {}
+      }
+    },
+    {
+      "id": "4",
+      "opcode": "MOV",
+      "operand": {
+        "Type": "Immediate",
+        "Value": {
+          "Value": 4
+        }
+      }
+    },
+    {
+      "id": "5",
+      "opcode": "MUL",
+      "operand": {
+        "Type": "Empty",
+        "Value": {}
+      }
+    }
+  ],
+  "processor": {
+    "core": 8,
+    "dag": [
+      {
+        "parent": "3",
+        "children": [
+          "1",
+          "2"
+        ]
+      },
+      {
+        "parent": "5",
+        "children": [
+          "3",
+          "4"
+        ]
+      }
+    ]
+  }
+}

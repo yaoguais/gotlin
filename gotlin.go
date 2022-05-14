@@ -128,10 +128,12 @@ func (g *Gotlin) StartServer(ctx context.Context) (err error) {
 }
 
 func (g *Gotlin) StopServer(graceful bool) (err error) {
-	if graceful {
-		g.gs.GracefulStop()
-		return
+	if g.gs != nil {
+		if graceful {
+			g.gs.GracefulStop()
+		} else {
+			g.gs.Stop()
+		}
 	}
-	g.gs.Stop()
 	return
 }

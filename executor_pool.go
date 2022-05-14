@@ -3,7 +3,6 @@ package gotlin
 import (
 	"context"
 	"encoding/json"
-	"strings"
 	"sync"
 	"time"
 
@@ -37,12 +36,7 @@ func NewExecutorPool(er ExecutorRepository) *ExecutorPool {
 
 func (m *ExecutorPool) getDefaultExecutor() Executor {
 	executor := NewExecutor()
-	opcodes := []string{}
-	for _, v := range DefaultInstructionHandlers {
-		opcodes = append(opcodes, string(v.OpCode))
-	}
-	label := NewLabel(OpCodeLabelKey, strings.Join(opcodes, ","))
-	executor = executor.AddLabel(label)
+	executor = executor.AddLabel(NewDefaultOpCodeLabel())
 	executor, _ = executor.ChangeState(StateRunning)
 	return executor
 }
