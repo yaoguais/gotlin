@@ -2,8 +2,6 @@ package gotlin
 
 import (
 	"net"
-
-	"github.com/pkg/errors"
 )
 
 type Executor struct {
@@ -37,11 +35,11 @@ func NewExecutor() Executor {
 func newExecutorFromClient(r *RegisterExecutorRequest) (e Executor, err error) {
 	id, err := ParseExecutorID(r.Id)
 	if err != nil {
-		return Executor{}, errors.Wrap(err, "Parse Executor id")
+		return Executor{}, wrapError(err, "Parse Executor id")
 	}
 	_, _, err = net.SplitHostPort(r.Host)
 	if err != nil {
-		return Executor{}, errors.Wrap(err, "Parse Host")
+		return Executor{}, wrapError(err, "Parse Host")
 	}
 	ls := []string{}
 	for _, v := range r.Labels {
@@ -51,7 +49,7 @@ func newExecutorFromClient(r *RegisterExecutorRequest) (e Executor, err error) {
 	labels := NewLabels(ls...)
 	_, ok := labels.Find(OpCodeLabelKey)
 	if !ok {
-		return Executor{}, errors.Errorf("Executor must have %s label", OpCodeLabelKey)
+		return Executor{}, newErrorf("Executor must have %s label", OpCodeLabelKey)
 	}
 
 	return Executor{

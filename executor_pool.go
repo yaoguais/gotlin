@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"sync"
 	"time"
-
-	"github.com/pkg/errors"
 )
 
 type ExecutorPool struct {
@@ -44,7 +42,7 @@ func (m *ExecutorPool) getDefaultExecutor() Executor {
 func (m *ExecutorPool) AddServerExecutor() error {
 	executor := m.getDefaultExecutor()
 	err := m.Add(context.Background(), executor)
-	return errors.Wrap(err, "Add server-side Executor")
+	return wrapError(err, "Add server-side Executor")
 }
 
 func (m *ExecutorPool) Add(ctx context.Context, executor Executor) (err error) {
@@ -53,7 +51,7 @@ func (m *ExecutorPool) Add(ctx context.Context, executor Executor) (err error) {
 
 	_, exist := m.executors[executor.ID]
 	if exist {
-		return errors.Errorf("Executor already exists")
+		return newErrorf("Executor already exists")
 	}
 
 	err = m.ExecutorRepository.Save(ctx, &executor)
@@ -85,7 +83,7 @@ func (m *ExecutorPool) Remove(ctx context.Context, id ExecutorID, removeErr erro
 	m.ids = ids
 
 	if !found {
-		return errors.Errorf("Executor not found, %v", id.String())
+		return newErrorf("Executor not found, %v", id.String())
 	}
 
 	executor, err := m.ExecutorRepository.Find(ctx, id)
@@ -98,7 +96,7 @@ func (m *ExecutorPool) Remove(ctx context.Context, id ExecutorID, removeErr erro
 	executor = executor.ExitOnError(removeErr)
 	err = m.ExecutorRepository.Save(ctx, &executor)
 
-	return errors.Wrap(err, "Remove Executor")
+	return wrapError(err, "Remove Executor")
 }
 
 func (m *ExecutorPool) find(ctx context.Context, op OpCode) (Executor, error) {
@@ -113,7 +111,7 @@ func (m *ExecutorPool) find(ctx context.Context, op OpCode) (Executor, error) {
 		}
 	}
 
-	return Executor{}, errors.Errorf("Executor not found, opcode %s", op)
+	return Executor{}, newErrorf("Executor not found, opcode %s", op)
 }
 
 func (m *ExecutorPool) Execute(ctx context.Context, op Instruction, args ...Instruction) (InstructionResult, error) {
@@ -136,7 +134,7 @@ func (m *ExecutorPool) Execute(ctx context.Context, op Instruction, args ...Inst
 	commander, ok := m.cs[executor.Host]
 	if !ok {
 		return InstructionResult{},
-			errors.Errorf("Remote Executor not found, %v", executor.ID.String())
+			newErrorf("Remote Executor not found, %v", executor.ID.String())
 	}
 
 	return commander.ExecuteInstruction(ctx, op, args...)
@@ -165,7 +163,7 @@ func (m *ExecutorPool) setRemoteExecuteResult(id ID, result []byte) error {
 func (m *ExecutorPool) getRemoteExecuteResult(id ID) (InstructionResult, error) {
 	data, ok := m.rs[id]
 	if !ok {
-		return InstructionResult{}, errors.New("Remote Instruction execute timeout")
+		return InstructionResult{}, newError("Remote Instruction execute timeout")
 	}
 	delete(m.rs, id)
 
@@ -225,7 +223,7 @@ func (c *Commander) ExecuteInstruction(ctx context.Context, op Instruction, args
 	println("server send ==> ", r.String())
 	err := c.stream.Send(r)
 	if err != nil {
-		return InstructionResult{}, errors.New("Send command to client")
+		return InstructionResult{}, newError("Send command to client")
 	}
 	time.Sleep(100 * time.Millisecond)
 

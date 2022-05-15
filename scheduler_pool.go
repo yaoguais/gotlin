@@ -3,8 +3,6 @@ package gotlin
 import (
 	"context"
 	"sync"
-
-	"github.com/pkg/errors"
 )
 
 type SchedulerPool struct {
@@ -65,7 +63,7 @@ func (sp *SchedulerPool) RequestScheduler(ctx context.Context, option SchedulerO
 	}
 
 	_, err := sp.SchedulerRepository.Find(ctx, id)
-	return id, errors.Wrap(err, "Find Scheduler")
+	return id, wrapError(err, "Find Scheduler")
 }
 
 func (sp *SchedulerPool) newScheduler(ctx context.Context) (Scheduler, error) {
@@ -76,7 +74,7 @@ func (sp *SchedulerPool) newScheduler(ctx context.Context) (Scheduler, error) {
 	}
 
 	err := sp.SchedulerRepository.Save(ctx, &s)
-	return s, errors.Wrap(err, "Save Scheduler to Repository")
+	return s, wrapError(err, "Save Scheduler to Repository")
 }
 
 func (sp *SchedulerPool) RunProgramSync(ctx context.Context, sid SchedulerID, p Program, ins []Instructioner) (interface{}, error) {
@@ -248,11 +246,11 @@ func (sp *SchedulerPool) saveProgram(ctx context.Context, p Program, ins []Instr
 
 func (sp *SchedulerPool) resetProgram(ctx context.Context, p Program, ins []Instructioner) (Program, error) {
 	if !p.IsState(StateExit) {
-		return Program{}, errors.Wrap(ErrProgramState, "Not exit")
+		return Program{}, wrapError(ErrProgramState, "Not exit")
 	}
 
 	if p.Error == nil {
-		return Program{}, errors.Wrap(ErrProgramResult, "No error found")
+		return Program{}, wrapError(ErrProgramResult, "No error found")
 	}
 
 	code := NewProgramCode()
@@ -261,7 +259,7 @@ func (sp *SchedulerPool) resetProgram(ctx context.Context, p Program, ins []Inst
 	}
 
 	if !p.Code.IsEqual(code) {
-		return Program{}, errors.Wrap(ErrProgramCode, "Not same")
+		return Program{}, wrapError(ErrProgramCode, "Not same")
 	}
 
 	for _, iner := range ins {
@@ -327,7 +325,7 @@ func (sp *SchedulerPool) initProgram(ctx context.Context, s Scheduler, p Program
 	defer sp.mu.Unlock()
 
 	if !p.IsState(StateReady) {
-		return Program{}, errors.Wrap(ErrProgramState, "Not ready")
+		return Program{}, wrapError(ErrProgramState, "Not ready")
 	}
 
 	err := sp.saveScheduler(ctx, s, p)
@@ -337,7 +335,7 @@ func (sp *SchedulerPool) initProgram(ctx context.Context, s Scheduler, p Program
 
 	p, ok := p.ChangeState(StateRunning)
 	if !ok {
-		return Program{}, errors.Wrap(ErrProgramState, "Change to running")
+		return Program{}, wrapError(ErrProgramState, "Change to running")
 	}
 	err = sp.ProgramRepository.Save(ctx, &p)
 	return p, err
@@ -350,7 +348,7 @@ func (sp *SchedulerPool) runProgramSync(ctx context.Context, s Scheduler, p Prog
 	}
 
 	err = processor.Process(ctx, p)
-	return errors.Wrap(err, "Process program")
+	return wrapError(err, "Process program")
 }
 
 func (sp *SchedulerPool) getProcessor(p Program) (Processor, error) {
@@ -360,7 +358,7 @@ func (sp *SchedulerPool) getProcessor(p Program) (Processor, error) {
 	if p.IsDAGProcessor() {
 		return NewDAGProcessor(sp.ProgramRepository, sp.InstructionRepository, sp.ExecutorPool), nil
 	}
-	return nil, errors.New("Processor cannot be parsed")
+	return nil, newError("Processor cannot be parsed")
 }
 
 func (sp *SchedulerPool) queryResult(ctx context.Context, p Program) (interface{}, error) {
@@ -370,7 +368,7 @@ func (sp *SchedulerPool) queryResult(ctx context.Context, p Program) (interface{
 	}
 
 	if !p.IsState(StateExit) {
-		return nil, errors.Wrap(ErrProgramState, "Is not exit")
+		return nil, wrapError(ErrProgramState, "Is not exit")
 	}
 
 	if p.Error != nil {
@@ -396,7 +394,7 @@ func (sp *SchedulerPool) queryResult(ctx context.Context, p Program) (interface{
 		}
 		ans := d.Ancestors()
 		if len(ans) == 0 {
-			return nil, errors.New("No instruction found")
+			return nil, newError("No instruction found")
 		}
 		id := ans[0]
 
@@ -407,5 +405,5 @@ func (sp *SchedulerPool) queryResult(ctx context.Context, p Program) (interface{
 		return in.InstructionResult(ctx)
 	}
 
-	return nil, errors.New("The type of Processor is wrong")
+	return nil, newError("The type of Processor is wrong")
 }

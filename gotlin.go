@@ -4,7 +4,6 @@ import (
 	"context"
 	"net"
 
-	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 	"gorm.io/gorm"
 )
@@ -116,7 +115,7 @@ func (g *Gotlin) QueryResult(ctx context.Context, p Program) (interface{}, error
 
 func (g *Gotlin) StartServer(ctx context.Context) (err error) {
 	if g.gs == nil {
-		return errors.New("gRPC server is not enabled")
+		return newError("gRPC server is not enabled")
 	}
 
 	lis, err := net.Listen("tcp", g.ServerAddress)

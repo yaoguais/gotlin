@@ -348,7 +348,7 @@ func parseProgram(data []byte) (p Program, ins []Instructioner, err error) {
 		}
 	}
 
-	p = p.ChangeProcessor(NewDAGProcessorContext(d, 8))
+	p = p.ChangeProcessor(NewDAGProcessorContext(d, input.Processor.Core))
 	p, _ = p.ChangeState(StateReady)
 
 	return

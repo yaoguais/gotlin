@@ -6,7 +6,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/pkg/errors"
 	"github.com/spf13/cast"
 	"gorm.io/driver/clickhouse"
 	"gorm.io/driver/mysql"
@@ -75,7 +74,7 @@ func (v *Operand) UnmarshalJSON(data []byte) (err error) {
 		err = json.Unmarshal(root.Value, &databaseQuery)
 		*v = Operand{Type: root.Type, Value: databaseQuery}
 	default:
-		return errors.Errorf("Unmarshal Operand for type %s", root.Type)
+		return newErrorf("Unmarshal Operand for type %s", root.Type)
 	}
 	return
 }
@@ -133,7 +132,7 @@ func (v DatabaseQuery) Type() string {
 func (v DatabaseQuery) OperandValue(ctx context.Context) (interface{}, error) {
 	db, err := databasePool.Get(v.Driver, v.DSN)
 	if err != nil {
-		return nil, errors.Wrap(err, "Get a database connection")
+		return nil, wrapError(err, "Get a database connection")
 	}
 	return v.DoQuery(ctx, db)
 }
@@ -290,7 +289,7 @@ func parseSQLValueIntoRealType(value interface{}, columnType string) (interface{
 		return value, nil
 	}
 
-	return nil, errors.Errorf("Column type %s is not supported", columnType)
+	return nil, newErrorf("Column type %s is not supported", columnType)
 }
 
 var DatabaseFactory = func(driver, dsn string) (*gorm.DB, error) {
@@ -302,7 +301,7 @@ var DatabaseFactory = func(driver, dsn string) (*gorm.DB, error) {
 	case "clickhouse":
 		return gorm.Open(clickhouse.Open(dsn), &gorm.Config{})
 	default:
-		return nil, errors.Errorf("Database driver %s not supported", driver)
+		return nil, newErrorf("Database driver %s not supported", driver)
 	}
 }
 

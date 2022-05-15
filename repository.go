@@ -77,29 +77,34 @@ func (SchedulerEntity) TableName() string {
 
 type SchedulerDBRepository struct {
 	db *gorm.DB
+	formatError
 }
 
 func NewSchedulerDBRepository(db *gorm.DB) SchedulerDBRepository {
-	return SchedulerDBRepository{db: db}
+	e := formatError{format: "Scheduler %s"}
+	return SchedulerDBRepository{db, e}
 }
 
 func (r SchedulerDBRepository) Find(ctx context.Context, id SchedulerID) (m Scheduler, err error) {
 	e := SchedulerEntity{}
 	err = r.db.WithContext(ctx).Where("id = ?", id.String()).First(&e).Error
 	if err != nil {
-		return Scheduler{}, errors.Wrapf(ErrNotFound, "Scheduler %s, %v", id.String(), err.Error())
+		return Scheduler{}, r.error(ErrNotFound, err, id)
 	}
-	return SchedulerEntityConverter{}.ToModel(e)
+	m, err = SchedulerEntityConverter{}.ToModel(e)
+	return m, r.error(ErrFind, err, id)
 }
 
 func (r SchedulerDBRepository) Save(ctx context.Context, m *Scheduler) (err error) {
 	_, err = r.Find(ctx, m.ID)
 	if isRecordNotFound(err) {
-		return r.create(ctx, m)
+		err = r.create(ctx, m)
+		return r.error(ErrPersistent, err, m.ID)
 	} else if err != nil {
 		return err
 	}
-	return r.update(ctx, m)
+	err = r.update(ctx, m)
+	return r.error(ErrPersistent, err, m.ID)
 }
 
 func (r SchedulerDBRepository) create(ctx context.Context, m *Scheduler) (err error) {
@@ -131,8 +136,8 @@ func (r SchedulerDBRepository) update(ctx context.Context, m *Scheduler) (err er
 	}
 
 	if res.RowsAffected == 0 {
-		return errors.Errorf("Update scheduler %s conflicts at version %d",
-			e.ID, e.UpdateTime)
+		err = newErrorf("at version %d", e.UpdateTime)
+		return r.error(ErrConflict, err, m.ID)
 	}
 
 	m.UpdateTime = ParseTimestamp(e.UpdateTime)
@@ -195,29 +200,34 @@ func (ProgramEntity) TableName() string {
 
 type ProgramDBRepository struct {
 	db *gorm.DB
+	formatError
 }
 
 func NewProgramDBRepository(db *gorm.DB) ProgramDBRepository {
-	return ProgramDBRepository{db: db}
+	e := formatError{format: "Program %s"}
+	return ProgramDBRepository{db, e}
 }
 
 func (r ProgramDBRepository) Find(ctx context.Context, id ProgramID) (m Program, err error) {
 	e := ProgramEntity{}
 	err = r.db.WithContext(ctx).Where("id = ?", id.String()).First(&e).Error
 	if err != nil {
-		return Program{}, errors.Wrapf(ErrNotFound, "Program %s, %v", id.String(), err.Error())
+		return Program{}, r.error(ErrNotFound, err, id)
 	}
-	return ProgramEntityConverter{}.ToModel(e)
+	m, err = ProgramEntityConverter{}.ToModel(e)
+	return m, r.error(ErrFind, err, id)
 }
 
 func (r ProgramDBRepository) Save(ctx context.Context, m *Program) (err error) {
 	_, err = r.Find(ctx, m.ID)
 	if isRecordNotFound(err) {
-		return r.create(ctx, m)
+		err = r.create(ctx, m)
+		return r.error(ErrPersistent, err, m.ID)
 	} else if err != nil {
 		return err
 	}
-	return r.update(ctx, m)
+	err = r.update(ctx, m)
+	return r.error(ErrPersistent, err, m.ID)
 }
 
 func (r ProgramDBRepository) create(ctx context.Context, m *Program) (err error) {
@@ -249,8 +259,8 @@ func (r ProgramDBRepository) update(ctx context.Context, m *Program) (err error)
 	}
 
 	if res.RowsAffected == 0 {
-		return errors.Errorf("Update program %s conflicts at version %d",
-			e.ID, e.UpdateTime)
+		err = newErrorf("at version %d", e.UpdateTime)
+		return r.error(ErrConflict, err, m.ID)
 	}
 
 	m.UpdateTime = ParseTimestamp(e.UpdateTime)
@@ -309,7 +319,7 @@ func (c ProgramEntityConverter) ToModel(e ProgramEntity) (m Program, err error) 
 
 	var error error
 	if e.Error != "" {
-		error = errors.New(e.Error)
+		error = newError(e.Error)
 	}
 
 	return Program{
@@ -342,29 +352,34 @@ func (InstructionEntity) TableName() string {
 
 type InstructionDBRepository struct {
 	db *gorm.DB
+	formatError
 }
 
 func NewInstructionDBRepository(db *gorm.DB) InstructionDBRepository {
-	return InstructionDBRepository{db: db}
+	e := formatError{format: "Instruction %s"}
+	return InstructionDBRepository{db, e}
 }
 
 func (r InstructionDBRepository) Find(ctx context.Context, id InstructionID) (m Instruction, err error) {
 	e := InstructionEntity{}
 	err = r.db.WithContext(ctx).Where("id = ?", id.String()).First(&e).Error
 	if err != nil {
-		return Instruction{}, errors.Wrapf(ErrNotFound, "Instruction %s, %v", id.String(), err.Error())
+		return Instruction{}, r.error(ErrNotFound, err, id)
 	}
-	return InstructionEntityConverter{}.ToModel(e)
+	m, err = InstructionEntityConverter{}.ToModel(e)
+	return m, r.error(ErrFind, err, id)
 }
 
 func (r InstructionDBRepository) Save(ctx context.Context, m *Instruction) (err error) {
 	_, err = r.Find(ctx, m.ID)
 	if isRecordNotFound(err) {
-		return r.create(ctx, m)
+		err = r.create(ctx, m)
+		return r.error(ErrPersistent, err, m.ID)
 	} else if err != nil {
 		return err
 	}
-	return r.update(ctx, m)
+	err = r.update(ctx, m)
+	return r.error(ErrPersistent, err, m.ID)
 }
 
 func (r InstructionDBRepository) create(ctx context.Context, m *Instruction) (err error) {
@@ -397,8 +412,8 @@ func (r InstructionDBRepository) update(ctx context.Context, m *Instruction) (er
 	}
 
 	if res.RowsAffected == 0 {
-		return errors.Errorf("Update instruction %s conflicts at version %d",
-			e.ID, e.UpdateTime)
+		err = newErrorf("at version %d", e.UpdateTime)
+		return r.error(ErrConflict, err, m.ID)
 	}
 
 	m.UpdateTime = ParseTimestamp(e.UpdateTime)
@@ -458,7 +473,7 @@ func (c InstructionEntityConverter) ToModel(e InstructionEntity) (m Instruction,
 
 	var error error
 	if e.Error != "" {
-		error = errors.New(e.Error)
+		error = newError(e.Error)
 	}
 
 	return Instruction{
@@ -493,29 +508,34 @@ func (ExecutorEntity) TableName() string {
 
 type ExecutorDBRepository struct {
 	db *gorm.DB
+	formatError
 }
 
 func NewExecutorDBRepository(db *gorm.DB) ExecutorDBRepository {
-	return ExecutorDBRepository{db: db}
+	e := formatError{format: "Executor %s"}
+	return ExecutorDBRepository{db, e}
 }
 
 func (r ExecutorDBRepository) Find(ctx context.Context, id ExecutorID) (m Executor, err error) {
 	e := ExecutorEntity{}
 	err = r.db.WithContext(ctx).Where("id = ?", id.String()).First(&e).Error
 	if err != nil {
-		return Executor{}, errors.Wrapf(ErrNotFound, "Executor %s, %v", id.String(), err.Error())
+		return Executor{}, r.error(ErrNotFound, err, m.ID)
 	}
-	return ExecutorEntityConverter{}.ToModel(e)
+	m, err = ExecutorEntityConverter{}.ToModel(e)
+	return m, r.error(ErrFind, err, m.ID)
 }
 
 func (r ExecutorDBRepository) Save(ctx context.Context, m *Executor) (err error) {
 	_, err = r.Find(ctx, m.ID)
 	if isRecordNotFound(err) {
-		return r.create(ctx, m)
+		err = r.create(ctx, m)
+		return r.error(ErrPersistent, err, m.ID)
 	} else if err != nil {
 		return err
 	}
-	return r.update(ctx, m)
+	err = r.update(ctx, m)
+	return r.error(ErrPersistent, err, m.ID)
 }
 
 func (r ExecutorDBRepository) create(ctx context.Context, m *Executor) (err error) {
@@ -547,8 +567,8 @@ func (r ExecutorDBRepository) update(ctx context.Context, m *Executor) (err erro
 	}
 
 	if res.RowsAffected == 0 {
-		return errors.Errorf("Update executor %s conflicts at version %d",
-			e.ID, e.UpdateTime)
+		err = newErrorf("at version %d", e.UpdateTime)
+		return r.error(ErrConflict, err, m.ID)
 	}
 
 	m.UpdateTime = ParseTimestamp(e.UpdateTime)
@@ -608,7 +628,7 @@ func (c ExecutorEntityConverter) ToModel(e ExecutorEntity) (m Executor, err erro
 
 	var error error
 	if e.Error != "" {
-		error = errors.New(e.Error)
+		error = newError(e.Error)
 	}
 
 	var limits Resource
@@ -640,12 +660,15 @@ func (c ExecutorEntityConverter) ToModel(e ExecutorEntity) (m Executor, err erro
 type SchedulerMemoryRepository struct {
 	m  map[SchedulerID]Scheduler
 	mu *sync.RWMutex
+	formatError
 }
 
 func NewSchedulerMemoryRepository() SchedulerMemoryRepository {
+	e := formatError{format: "Scheduler %s"}
 	return SchedulerMemoryRepository{
-		m:  make(map[SchedulerID]Scheduler),
-		mu: &sync.RWMutex{},
+		m:           make(map[SchedulerID]Scheduler),
+		mu:          &sync.RWMutex{},
+		formatError: e,
 	}
 }
 
@@ -654,7 +677,7 @@ func (r SchedulerMemoryRepository) Find(ctx context.Context, id SchedulerID) (Sc
 	m, ok := r.m[id]
 	r.mu.RUnlock()
 	if !ok {
-		return Scheduler{}, errors.Wrapf(ErrNotFound, "Scheduler %s", id.String())
+		return Scheduler{}, r.error(ErrNotFound, ErrUndoubted, id)
 	}
 	return m, nil
 }
@@ -670,8 +693,8 @@ func (r SchedulerMemoryRepository) Save(ctx context.Context, m *Scheduler) error
 	}
 
 	if !old.UpdateTime.IsEqual(m.UpdateTime) {
-		return errors.Errorf("Update Scheduler %s conflicts at version %d",
-			m.ID, m.UpdateTime)
+		err := newErrorf("at version %d", m.UpdateTime)
+		return r.error(ErrConflict, err, m.ID)
 	}
 
 	m.UpdateTime = ParseTimestamp(requestNewUpdateTime(m.UpdateTime.Value()))
@@ -683,12 +706,15 @@ func (r SchedulerMemoryRepository) Save(ctx context.Context, m *Scheduler) error
 type ProgramMemoryRepository struct {
 	m  map[ProgramID]Program
 	mu *sync.RWMutex
+	formatError
 }
 
 func NewProgramMemoryRepository() ProgramMemoryRepository {
+	e := formatError{format: "Program %s"}
 	return ProgramMemoryRepository{
-		m:  make(map[ProgramID]Program),
-		mu: &sync.RWMutex{},
+		m:           make(map[ProgramID]Program),
+		mu:          &sync.RWMutex{},
+		formatError: e,
 	}
 }
 
@@ -697,7 +723,7 @@ func (r ProgramMemoryRepository) Find(ctx context.Context, id ProgramID) (Progra
 	m, ok := r.m[id]
 	r.mu.RUnlock()
 	if !ok {
-		return Program{}, errors.Wrapf(ErrNotFound, "Program %s", id.String())
+		return Program{}, r.error(ErrNotFound, ErrUndoubted, id)
 	}
 	return m, nil
 }
@@ -713,8 +739,8 @@ func (r ProgramMemoryRepository) Save(ctx context.Context, m *Program) error {
 	}
 
 	if !old.UpdateTime.IsEqual(m.UpdateTime) {
-		return errors.Errorf("Update Program %s conflicts at version %d",
-			m.ID, m.UpdateTime)
+		err := newErrorf("at version %d", m.UpdateTime)
+		return r.error(ErrConflict, err, m.ID)
 	}
 
 	m.UpdateTime = ParseTimestamp(requestNewUpdateTime(m.UpdateTime.Value()))
@@ -726,12 +752,15 @@ func (r ProgramMemoryRepository) Save(ctx context.Context, m *Program) error {
 type InstructionMemoryRepository struct {
 	m  map[InstructionID]Instruction
 	mu *sync.RWMutex
+	formatError
 }
 
 func NewInstructionMemoryRepository() InstructionMemoryRepository {
+	e := formatError{format: "Instruction %s"}
 	return InstructionMemoryRepository{
-		m:  make(map[InstructionID]Instruction),
-		mu: &sync.RWMutex{},
+		m:           make(map[InstructionID]Instruction),
+		mu:          &sync.RWMutex{},
+		formatError: e,
 	}
 }
 
@@ -740,7 +769,7 @@ func (r InstructionMemoryRepository) Find(ctx context.Context, id InstructionID)
 	m, ok := r.m[id]
 	r.mu.RUnlock()
 	if !ok {
-		return Instruction{}, errors.Wrapf(ErrNotFound, "Instruction %s", id.String())
+		return Instruction{}, r.error(ErrNotFound, ErrUndoubted, id)
 	}
 	return m, nil
 }
@@ -756,8 +785,8 @@ func (r InstructionMemoryRepository) Save(ctx context.Context, m *Instruction) e
 	}
 
 	if !old.UpdateTime.IsEqual(m.UpdateTime) {
-		return errors.Errorf("Update Instruction %s conflicts at version %d",
-			m.ID, m.UpdateTime)
+		err := newErrorf("at version %d", m.UpdateTime)
+		return r.error(ErrConflict, err, m.ID)
 	}
 
 	m.UpdateTime = ParseTimestamp(requestNewUpdateTime(m.UpdateTime.Value()))
@@ -769,12 +798,15 @@ func (r InstructionMemoryRepository) Save(ctx context.Context, m *Instruction) e
 type ExecutorMemoryRepository struct {
 	m  map[ExecutorID]Executor
 	mu *sync.RWMutex
+	formatError
 }
 
 func NewExecutorMemoryRepository() ExecutorMemoryRepository {
+	e := formatError{format: "Executor %s"}
 	return ExecutorMemoryRepository{
-		m:  make(map[ExecutorID]Executor),
-		mu: &sync.RWMutex{},
+		m:           make(map[ExecutorID]Executor),
+		mu:          &sync.RWMutex{},
+		formatError: e,
 	}
 }
 
@@ -783,7 +815,7 @@ func (r ExecutorMemoryRepository) Find(ctx context.Context, id ExecutorID) (Exec
 	m, ok := r.m[id]
 	r.mu.RUnlock()
 	if !ok {
-		return Executor{}, errors.Wrapf(ErrNotFound, "Executor %s", id.String())
+		return Executor{}, r.error(ErrNotFound, ErrUndoubted, id)
 	}
 	return m, nil
 }
@@ -799,8 +831,8 @@ func (r ExecutorMemoryRepository) Save(ctx context.Context, m *Executor) error {
 	}
 
 	if !old.UpdateTime.IsEqual(m.UpdateTime) {
-		return errors.Errorf("Update Executor %s conflicts at version %d",
-			m.ID, m.UpdateTime)
+		err := newErrorf("at version %d", m.UpdateTime)
+		return r.error(ErrConflict, err, m.ID)
 	}
 
 	m.UpdateTime = ParseTimestamp(requestNewUpdateTime(m.UpdateTime.Value()))

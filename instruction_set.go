@@ -4,11 +4,8 @@ import (
 	"context"
 	"sync"
 
-	"github.com/pkg/errors"
 	"github.com/spf13/cast"
 )
-
-var ErrNoExecutorFound = errors.New("No executor found")
 
 type ExecutorHandler func(context.Context, Instruction, ...Instruction) (InstructionResult, error)
 
@@ -37,7 +34,7 @@ func (m *InstructionSet) Register(handler InstructionHandler) error {
 
 	_, exist := m.handlers[handler.OpCode]
 	if exist {
-		return errors.Errorf("Instruction handler %s is already exist", handler.OpCode)
+		return newErrorf("Instruction handler %s is already exist", handler.OpCode)
 	}
 	m.handlers[handler.OpCode] = handler
 	return nil
@@ -62,7 +59,7 @@ func (m *InstructionSet) GetExecutorHandler(op OpCode) (ExecutorHandler, error) 
 	if ok {
 		return v.Executor, nil
 	}
-	return nil, ErrNoExecutorFound
+	return nil, ErrExecutorNotFound
 }
 
 func (m *InstructionSet) ClearDefaults() {
@@ -128,9 +125,6 @@ var DefaultInstructionHandlers = []InstructionHandler{
 	DiffInstructionHandler,
 }
 
-var ErrRegisterResult = errors.New("Only register result is supported for arithmetic instructions")
-var ErrArithmeticOpCode = errors.New("Only ADD/SUB/MUL/DIV are supported for arithmetic opcode")
-
 func ExecuteArithmeticInstruction(ctx context.Context, op Instruction, args ...Instruction) (InstructionResult, error) {
 	var result float64
 
@@ -140,7 +134,7 @@ func ExecuteArithmeticInstruction(ctx context.Context, op Instruction, args ...I
 		tmp, err := in.InstructionResult(ctx)
 		if err != nil {
 			return InstructionResult{},
-				errors.Wrapf(err, "Get arithmetic instruction operands, %v", in.ID.String())
+				wrapError(err, "Get arithmetic instruction operands, %v", in.ID.String())
 		}
 		result = cast.ToFloat64(tmp)
 	}
@@ -150,7 +144,7 @@ func ExecuteArithmeticInstruction(ctx context.Context, op Instruction, args ...I
 		tmp, err := in.InstructionResult(ctx)
 		if err != nil {
 			return InstructionResult{},
-				errors.Wrapf(err, "Get arithmetic instruction operands, %v", in.ID.String())
+				wrapError(err, "Get arithmetic instruction operands, %v", in.ID.String())
 		}
 
 		x := cast.ToFloat64(tmp)
@@ -164,11 +158,11 @@ func ExecuteArithmeticInstruction(ctx context.Context, op Instruction, args ...I
 			result *= x
 		case OpCodeDiv:
 			if x == 0 {
-				return InstructionResult{}, errors.New("The divisor cannot be zero")
+				return InstructionResult{}, newErrorf("The divisor cannot be zero")
 			}
 			result /= x
 		default:
-			return InstructionResult{}, errors.Errorf("not supported math operator %T", op)
+			return InstructionResult{}, newErrorf("not supported math operator %T", op)
 		}
 	}
 
@@ -179,7 +173,7 @@ func ExecuteMoveInstruction(ctx context.Context, op Instruction, args ...Instruc
 	v, err := op.OperandValue(ctx)
 	if err != nil {
 		return InstructionResult{},
-			errors.Wrapf(err, "Get move instruction operands, %v", op.ID.String())
+			wrapError(err, "Get move instruction operands, %v", op.ID.String())
 	}
 	return NewRegisterResult(v), nil
 }
@@ -188,7 +182,7 @@ func ExecuteInputInstruction(ctx context.Context, op Instruction, args ...Instru
 	v, err := op.OperandValue(ctx)
 	if err != nil {
 		return InstructionResult{},
-			errors.Wrapf(err, "Get in instruction operands, %v", op.ID.String())
+			wrapError(err, "Get in instruction operands, %v", op.ID.String())
 	}
 	return NewRegisterResult(v), nil
 }
@@ -296,7 +290,7 @@ func ExecuteCollectionInstruction(ctx context.Context, op Instruction, args ...I
 	ok := (op.OpCode == OpCodeIntersect || op.OpCode == OpCodeUnion || op.OpCode == OpCodeDiff) && argc > 0
 	if !ok {
 		return InstructionResult{},
-			errors.Errorf("Empty collection instruction operand, %v, opcode %s, argc %d",
+			newErrorf("Empty collection instruction operand, %v, opcode %s, argc %d",
 				op.ID.String(), op.OpCode, argc)
 	}
 
@@ -305,7 +299,7 @@ func ExecuteCollectionInstruction(ctx context.Context, op Instruction, args ...I
 		tmp, err := in.InstructionResult(ctx)
 		if err != nil {
 			return InstructionResult{},
-				errors.Wrapf(err, "Get collection instruction operands, %v", in.ID.String())
+				wrapError(err, "Get collection instruction operands, %v", in.ID.String())
 		}
 		list = append(list, tmp)
 	}
@@ -313,7 +307,7 @@ func ExecuteCollectionInstruction(ctx context.Context, op Instruction, args ...I
 	cv, ok := getCollectionValues(list)
 	if !ok {
 		return InstructionResult{},
-			errors.Errorf("Collection Operands only support []string/[]int/[]float64, should be %d %T, strings %d ints %d floats %d",
+			newErrorf("Collection Operands only support []string/[]int/[]float64, should be %d %T, strings %d ints %d floats %d",
 				len(list), list[0], len(cv.strings), len(cv.ints), len(cv.floats))
 	}
 
@@ -323,7 +317,7 @@ func ExecuteCollectionInstruction(ctx context.Context, op Instruction, args ...I
 	}
 
 	return InstructionResult{},
-		errors.Errorf("Collection Operands only support []string/[]int/[]float64, should be %d %T, %s %s",
+		newErrorf("Collection Operands only support []string/[]int/[]float64, should be %d %T, %s %s",
 			len(list), list[0], op.ID.String(), op.OpCode)
 }
 

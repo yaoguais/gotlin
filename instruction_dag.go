@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/heimdalr/dag"
-	"github.com/pkg/errors"
 )
 
 type InstructionVertex struct {
@@ -77,7 +76,7 @@ func NewInstructionDAG() InstructionDAG {
 func ParseInstructionDAG(s string) (InstructionDAG, error) {
 	d, err := dag.UnmarshalJSON([]byte(s), &StorableDAG{})
 	if err != nil {
-		return InstructionDAG{}, errors.Wrap(err, "Parse instruction dag")
+		return InstructionDAG{}, wrapError(err, "Parse instruction dag")
 	}
 
 	id := int64(0)
@@ -87,7 +86,7 @@ func ParseInstructionDAG(s string) (InstructionDAG, error) {
 		m[v.(InstructionID)] = i
 		i2, err := strconv.ParseInt(strings.TrimPrefix(i, "0"), 10, 64)
 		if err != nil {
-			return InstructionDAG{}, errors.Wrap(err, "Parse instruction dag id")
+			return InstructionDAG{}, wrapError(err, "Parse instruction dag id")
 		}
 		if i2 > id {
 			id = i2
@@ -122,7 +121,7 @@ func (d InstructionDAG) AttachChildren(parent InstructionID, children ...Instruc
 			return err
 		}
 		if len(ss) != 0 {
-			return errors.New("Each instruction can only have one parent instruction")
+			return newError("Each instruction can only have one parent instruction")
 		}
 		err = d.dag.AddEdge(cid, pid)
 		if err != nil {

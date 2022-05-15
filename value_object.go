@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
-	"github.com/pkg/errors"
 )
 
 var (
@@ -32,7 +31,7 @@ func NewID() ID {
 func ParseID(s string) (ID, error) {
 	u, err := uuid.FromString(s)
 	if err != nil {
-		return ID{}, errors.Wrap(err, "Parse id")
+		return ID{}, wrapError(err, "Parse id")
 	}
 	v := ID{value: u}
 	return v, v.validate()
@@ -43,10 +42,10 @@ var emptyUUIDRegexp = regexp.MustCompile(`^[0-]+$`)
 func (v ID) validate() error {
 	isEmpty := emptyUUIDRegexp.MatchString(v.String())
 	if isEmpty {
-		return errors.New("Empty uuid found")
+		return newError("Empty uuid found")
 	}
 	if v.value.Version() != uuid.V4 {
-		return errors.New("Invalid uuid version")
+		return newError("Invalid uuid version")
 	}
 	return nil
 }
@@ -74,7 +73,7 @@ func (v ID) changeNonce() ID {
 
 func (v *ID) UnmarshalJSON(data []byte) error {
 	if v == nil {
-		return errors.New("ID is nil")
+		return newError("ID is nil")
 	}
 	var s string
 	err := json.Unmarshal(data, &s)
@@ -127,7 +126,7 @@ const (
 
 func ParseOpCode(s string) (OpCode, error) {
 	if s == "" {
-		return OpCode(""), errors.New("empty opcode found")
+		return OpCode(""), newError("empty opcode found")
 	}
 	return OpCode(s), nil
 }
@@ -389,4 +388,10 @@ type Resource struct {
 
 func NewEmptyResource() Resource {
 	return Resource{}
+}
+
+type ClientID = ID
+
+func NewClientID() ClientID {
+	return ClientID(NewID())
 }

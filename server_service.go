@@ -4,7 +4,6 @@ import (
 	"context"
 	"io"
 
-	"github.com/pkg/errors"
 	"google.golang.org/grpc/peer"
 )
 
@@ -23,7 +22,7 @@ func newServerService(g *Gotlin) *serverService {
 func (s *serverService) RegisterExecutor(ctx context.Context, req *RegisterExecutorRequest) (resp *RegisterExecutorResponse, err error) {
 	p, ok := peer.FromContext(ctx)
 	if !ok {
-		return nil, errors.Errorf("Unrecognized client address")
+		return nil, newErrorf("Unrecognized client address")
 	}
 	req.Host = p.Addr.String()
 	executor, err := newExecutorFromClient(req)
@@ -44,7 +43,7 @@ func (s *serverService) UnregisterExecutor(ctx context.Context, req *UnregisterE
 	}
 	var removeErr error
 	if req.Error != "" {
-		removeErr = errors.New(req.Error)
+		removeErr = newError(req.Error)
 	}
 
 	err = s.g.executorPool.Remove(ctx, id, removeErr)

@@ -3,8 +3,6 @@ package gotlin
 import (
 	"context"
 	"encoding/json"
-
-	"github.com/pkg/errors"
 )
 
 type InstructionResult struct {
@@ -58,7 +56,7 @@ func (v *InstructionResult) UnmarshalJSON(data []byte) (err error) {
 		err = json.Unmarshal(root.Result, &registerResult)
 		*v = InstructionResult{Type: root.Type, Result: registerResult}
 	default:
-		return errors.Errorf("Unmarshal Operand for type %s", root.Type)
+		return newErrorf("Unmarshal Operand for type %s", root.Type)
 	}
 	return
 }

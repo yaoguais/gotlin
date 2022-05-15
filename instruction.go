@@ -2,8 +2,6 @@ package gotlin
 
 import (
 	"context"
-
-	"github.com/pkg/errors"
 )
 
 type Instruction struct {
@@ -73,7 +71,7 @@ func (m Instruction) Finish(result InstructionResult, err error) Instruction {
 		if m.Error == nil {
 			m.Error = err
 		} else {
-			m.Error = errors.Wrap(err, m.Error.Error())
+			m.Error = wrapError(err, m.Error.Error())
 		}
 	} else {
 		m.Result = result

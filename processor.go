@@ -3,8 +3,6 @@ package gotlin
 import (
 	"context"
 	"time"
-
-	"github.com/pkg/errors"
 )
 
 type Processor interface {
@@ -97,11 +95,11 @@ func (m *PCProcessor) Execute(ctx context.Context, op Instruction) error {
 	err = m.SaveExecuteResult(ctx, op, result, execError)
 	if err != nil {
 		if execError != nil {
-			return errors.Wrap(execError, err.Error())
+			return wrapError(execError, err.Error())
 		}
-		return errors.Wrap(err, "Save results after executing instruction")
+		return wrapError(err, "Save results after executing instruction")
 	}
-	return errors.Wrap(execError, "Executing instruction")
+	return wrapError(execError, "Executing instruction")
 }
 
 func (m *PCProcessor) GetInstructionArgs(ctx context.Context, op Instruction) ([]Instruction, error) {
@@ -147,16 +145,16 @@ func NewPCState(ctx context.Context, p *Program, r ProgramRepository) PCState {
 
 func (m PCState) Validate(ctx context.Context) error {
 	if !m.p.IsPCProcessor() {
-		return errors.Wrapf(ErrProcessorType, "Current is %v", m.p.Processor.ControlUnit)
+		return wrapError(ErrProcessorType, "Current is %v", m.p.Processor.ControlUnit)
 	}
 
 	if !m.p.IsState(StateRunning) {
-		return errors.Wrap(ErrProgramState, "Is not running")
+		return wrapError(ErrProgramState, "Is not running")
 	}
 
 	ins := m.p.Code.Instructions
 	if len(ins) == 0 {
-		return errors.Wrap(ErrInstructions, "No nstruction found")
+		return wrapError(ErrInstructions, "No nstruction found")
 	}
 
 	return nil
@@ -224,7 +222,7 @@ func (m PCState) Args() ([]InstructionID, error) {
 		}
 	}
 	if i == n {
-		return nil, errors.Wrap(ErrProgramState, "Args not found")
+		return nil, wrapError(ErrProgramState, "Args not found")
 	}
 
 	argc := 2
@@ -249,7 +247,7 @@ func (m PCState) Finish(exitErr error) error {
 
 	err := m.r.Save(ctx, &p)
 	if err != nil {
-		return errors.Wrapf(err, "Exit error %v", exitErr)
+		return wrapError(err, "Exit error %v", exitErr)
 	}
 	*m.p = p
 	return nil
@@ -272,7 +270,7 @@ func (m PCInstructionState) IsExecutable() bool {
 func (m PCInstructionState) Run() error {
 	in, ok := m.in.ChangeState(StateRunning)
 	if !ok {
-		return errors.Wrap(ErrInstructionState, "Change to running")
+		return wrapError(ErrInstructionState, "Change to running")
 	}
 	err := m.ir.Save(m.ctx, &in)
 	if err != nil {
@@ -286,5 +284,5 @@ func (m PCInstructionState) Error() error {
 	if m.in.IsState(StateExit) {
 		return m.in.Error
 	}
-	return errors.Wrapf(ErrInstructionState, "Is not exit, %v", m.in.State)
+	return wrapError(ErrInstructionState, "Is not exit, %v", m.in.State)
 }

@@ -4,8 +4,6 @@ import (
 	"context"
 	"sync"
 	"time"
-
-	"github.com/pkg/errors"
 )
 
 type DAGProcessor struct {
@@ -177,11 +175,11 @@ func (m *DAGProcessor) execute(ctx context.Context, op Instruction) error {
 	err = m.SaveExecuteResult(ctx, op, result, execError)
 	if err != nil {
 		if execError != nil {
-			return errors.Wrap(execError, err.Error())
+			return wrapError(execError, err.Error())
 		}
-		return errors.Wrap(err, "Save results after executing instruction")
+		return wrapError(err, "Save results after executing instruction")
 	}
-	return errors.Wrap(execError, "Executing instruction")
+	return wrapError(execError, "Executing instruction")
 }
 
 func (m *DAGProcessor) GetInstructionArgs(ctx context.Context, op Instruction) ([]Instruction, error) {
@@ -265,7 +263,7 @@ func (m DAGState) Finish(exitErr error) error {
 
 	err := m.r.Save(ctx, &p)
 	if err != nil {
-		return errors.Wrapf(err, "Exit error %v", exitErr)
+		return wrapError(err, "Exit error %v", exitErr)
 	}
 	*m.p = p
 	return nil
@@ -357,7 +355,7 @@ func (m DAGInstructionState) IsExecutable() (ok bool, err error) {
 func (m DAGInstructionState) Run() error {
 	in, ok := m.in.ChangeState(StateRunning)
 	if !ok {
-		return errors.Wrap(ErrInstructionState, "Change to running")
+		return wrapError(ErrInstructionState, "Change to running")
 	}
 	err := m.ir.Save(m.ctx, &in)
 	if err != nil {
@@ -369,7 +367,7 @@ func (m DAGInstructionState) Run() error {
 
 func (m DAGInstructionState) Error() error {
 	if m.in.IsState(StateBlocked) {
-		return errors.Wrapf(ErrInstructionState, "Is blocked, %v", m.in.State)
+		return wrapError(ErrInstructionState, "Is blocked, %v", m.in.State)
 	}
 	return m.in.Error
 }

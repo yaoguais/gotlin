@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"io"
 
-	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 )
 
@@ -53,13 +52,16 @@ type Client struct {
 	ctx context.Context
 	cc  *grpc.ClientConn
 	c   ServerServiceClient
+	formatError
 }
 
 func NewClient(options ...ClientOption) (*Client, error) {
+	e := formatError{"Client " + NewClientID().String() + " %s"}
 	c := &Client{
 		TargetAddress:  "127.0.0.1:9527",
 		InstructionSet: NewInstructionSet(),
 		ctx:            context.Background(),
+		formatError:    e,
 	}
 
 	for _, o := range options {
@@ -68,7 +70,7 @@ func NewClient(options ...ClientOption) (*Client, error) {
 
 	cc, err := grpc.DialContext(c.ctx, c.TargetAddress, c.GRPCOption...)
 	if err != nil {
-		return nil, errors.Wrap(err, "Failed to connect to server")
+		return nil, c.error(ErrConnect, err, "Connect to server")
 	}
 	c.cc = cc
 	c.c = NewServerServiceClient(cc)
@@ -92,13 +94,13 @@ type UnregisterExecutorOption struct {
 func (c *Client) RegisterExecutor(ctx context.Context, r RegisterExecutorOption) error {
 	req := pbConverter{}.RegisterExecutorOptionToPb(r)
 	_, err := c.c.RegisterExecutor(ctx, req, r.CallOptions.GRPCOption()...)
-	return errors.Wrap(err, "Register Executor")
+	return c.error(ErrRequest, err, "Register Executor")
 }
 
 func (c *Client) UnregisterExecutor(ctx context.Context, r UnregisterExecutorOption) error {
 	req := pbConverter{}.UnregisterExecutorOptionToPb(r)
 	_, err := c.c.UnregisterExecutor(ctx, req, r.CallOptions.GRPCOption()...)
-	return errors.Wrap(err, "Unregister Executor")
+	return c.error(ErrRequest, err, "Unregister Executor")
 }
 
 type StartComputeNodeOption struct {
@@ -112,7 +114,7 @@ func (c *Client) StartComputeNode(ctx context.Context, r StartComputeNodeOption)
 func (c *Client) handleInstructions(ctx context.Context, callOptions ClientCallOptions) error {
 	stream, err := c.c.ExecuteCommand(ctx, callOptions.GRPCOption()...)
 	if err != nil {
-		return errors.Wrap(err, "Client execute command")
+		return c.error(ErrRequest, err, "Client execute command")
 	}
 
 	r := &CommandFromRemote{
@@ -120,14 +122,14 @@ func (c *Client) handleInstructions(ctx context.Context, callOptions ClientCallO
 	}
 	err = stream.Send(r)
 	if err != nil {
-		return errors.Wrap(err, "Client connect to server")
+		return c.error(ErrRequest, err, "Client connect to server")
 	}
 
 	for {
 
 		r2, err := stream.Recv()
 		if err != nil {
-			return errors.Wrap(err, "Client receive from server")
+			return c.error(ErrRequest, err, "Client receive from server")
 		}
 
 		println("client receive ==> ", r2.String())
@@ -139,17 +141,17 @@ func (c *Client) handleInstructions(ctx context.Context, callOptions ClientCallO
 			for i, in := range ins {
 				id, err := ParseInstructionID(in.Id)
 				if err != nil {
-					return errors.Wrapf(err, "Client parse instruction id %d", i)
+					return c.error(ErrRequest, err, "Client parse instruction id %d", i)
 				}
 				var operand Operand
 				err = json.Unmarshal(in.GetOperand(), &operand)
 				if err != nil {
-					return errors.Wrapf(err, "Client unmarshal operand %d", i)
+					return c.error(ErrRequest, err, "Client unmarshal operand %d", i)
 				}
 				var result InstructionResult
 				err = json.Unmarshal(in.GetResult(), &result)
 				if err != nil {
-					return errors.Wrapf(err, "Client unmarshal operand %d", i)
+					return c.error(ErrRequest, err, "Client unmarshal operand %d", i)
 				}
 				t := Instruction{
 					ID:      id,
@@ -173,7 +175,7 @@ func (c *Client) handleInstructions(ctx context.Context, callOptions ClientCallO
 			}
 			data, err := json.Marshal(result)
 			if err != nil {
-				return errors.Wrap(err, "Marshal remote result")
+				return c.error(ErrRequest, err, "Marshal remote result")
 			}
 
 			r3 := &CommandFromRemote{
@@ -190,10 +192,10 @@ func (c *Client) handleInstructions(ctx context.Context, callOptions ClientCallO
 
 			err = stream.Send(r3)
 			if err != nil {
-				return errors.Wrap(err, "Client send Instruction execute result")
+				return c.error(ErrRequest, err, "Client send Instruction execute result")
 			}
 		} else {
-			return errors.Errorf("Client receive invalid type %s", r2.Type)
+			return c.error(ErrRequest, ErrUndoubted, "Client receive invalid type "+r2.Type.String())
 		}
 	}
 }
@@ -241,7 +243,7 @@ func (c *Client) WaitResult(ctx context.Context) (chan ProgramResult, error) {
 		for {
 			select {
 			case <-ctx.Done():
-				ch <- ProgramResult{Error: errors.Wrap(ctx.Err(), "From Client")}
+				ch <- ProgramResult{Error: c.error(ctx.Err(), ErrUndoubted, "From Client")}
 				return
 			default:
 			}
@@ -250,10 +252,10 @@ func (c *Client) WaitResult(ctx context.Context) (chan ProgramResult, error) {
 			if err == io.EOF {
 				return
 			} else if err == context.Canceled {
-				ch <- ProgramResult{Error: errors.Wrap(err, "From Server")}
+				ch <- ProgramResult{Error: c.error(context.Canceled, ErrUndoubted, "From Server")}
 				return
 			} else if err != nil {
-				ch <- ProgramResult{Error: errors.Wrap(ErrProgramExitUnexpectedly, err.Error())}
+				ch <- ProgramResult{Error: c.error(ErrExitUnexpectedly, err, "Program exit")}
 				return
 			}
 			ch <- pc.WaitResultResponseToModel(m)
@@ -411,7 +413,7 @@ func (pbConverter) WaitResultResponseToModel(r *WaitResultResponse) ProgramResul
 	id, _ := ParseProgramID(r.GetId())
 	var err error
 	if r.Error != "" {
-		err = errors.New(r.Error)
+		err = newError(r.Error)
 	}
 	return ProgramResult{
 		ID:     id,
