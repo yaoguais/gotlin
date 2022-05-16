@@ -175,47 +175,30 @@ func (m *ExecutorPool) getRemoteExecuteResult(id ID) (InstructionResult, error) 
 type Commander struct {
 	ep     *ExecutorPool
 	host   Host
-	stream ServerService_ExecuteCommandServer
+	stream ServerService_ExecuteServer
 }
 
-func NewCommander(ep *ExecutorPool, host Host, stream ServerService_ExecuteCommandServer) *Commander {
+func NewCommander(ep *ExecutorPool, host Host, stream ServerService_ExecuteServer) *Commander {
 	return &Commander{ep, host, stream}
 }
 
 func (c *Commander) ExecuteInstruction(ctx context.Context, op Instruction, args ...Instruction) (InstructionResult, error) {
-	ts := []*CommandToRemote_Instruction{}
-
-	ins := append([]Instruction{}, op)
-	ins = append(ins, args...)
-	for _, in := range ins {
-		operand, err := json.Marshal(in.Operand)
-		if err != nil {
-			return InstructionResult{}, err
-		}
-		result, err := json.Marshal(in.Result)
-		if err != nil {
-			return InstructionResult{}, err
-		}
-		t := &CommandToRemote_Instruction{
-			Id:      in.ID.String(),
-			Opcode:  string(in.OpCode),
-			Operand: operand,
-			Result:  result,
-		}
-		ts = append(ts, t)
+	ins := []Instructioner{}
+	for _, v := range args {
+		ins = append(ins, v)
 	}
 
 	id := NewID()
 	timeout := int64(3000)
 
-	r := &CommandToRemote{
+	pc := pbConverter{}
+
+	r := &ExecuteStream{
 		Id:      id.String(),
-		Type:    CommandType_ExecuteInstruction,
+		Type:    ExecuteStream_Execute,
 		Timeout: timeout,
-		ExecuteInstruction: &CommandToRemote_ExecuteInstruction{
-			Op:   ts[0],
-			Args: ts[1:],
-		},
+		Op:      pc.InstructionerToPb(op),
+		Args:    pc.InstructionersToPb(ins),
 	}
 
 	_ = c.ep.attachRemoteExecute(id)

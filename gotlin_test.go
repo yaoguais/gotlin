@@ -19,7 +19,7 @@ import (
 	"google.golang.org/grpc"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
+	glogger "gorm.io/gorm/logger"
 )
 
 var testDriver = "mysql"
@@ -46,7 +46,7 @@ func init() {
 
 func getTestDB() *gorm.DB {
 	db, err := gorm.Open(mysql.Open(testDSN), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Silent),
+		Logger: glogger.Default.LogMode(glogger.Silent),
 	})
 	if err != nil {
 		panic(err)

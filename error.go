@@ -1,6 +1,9 @@
 package gotlin
 
-import "github.com/pkg/errors"
+import (
+	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
+)
 
 // Common Errors
 var (
@@ -73,4 +76,14 @@ func (e formatError) error(cause error, err error, args ...interface{}) error {
 	}
 	args = append(args, err)
 	return wrapError(cause, e.format+" %v", args...)
+}
+
+var logger Logger = logrus.NewEntry(logrus.StandardLogger())
+
+type Logger interface {
+	logrus.StdLogger
+}
+
+func SetLogger(l Logger) {
+	logger = l
 }

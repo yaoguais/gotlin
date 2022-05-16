@@ -53,7 +53,7 @@ func (s *serverService) UnregisterExecutor(ctx context.Context, req *UnregisterE
 	return &UnregisterExecutorResponse{}, nil
 }
 
-func (s *serverService) ExecuteCommand(stream ServerService_ExecuteCommandServer) error {
+func (s *serverService) Execute(stream ServerService_ExecuteServer) error {
 	ctx := stream.Context()
 	p, _ := peer.FromContext(ctx)
 	host := Host(p.Addr.String())
@@ -74,15 +74,15 @@ func (s *serverService) ExecuteCommand(stream ServerService_ExecuteCommandServer
 
 		println("server receive ==> ", r.String())
 
-		if r.Type == CommandType_ConnectToServer {
+		if r.Type == ExecuteStream_Connect {
 			commander := NewCommander(s.g.executorPool, host, stream)
 			err := s.g.executorPool.attachCommander(commander)
 			if err != nil {
 				return err
 			}
-		} else if r.Type == CommandType_ExecuteInstruction {
+		} else if r.Type == ExecuteStream_Result {
 			id, _ := ParseID(r.Id)
-			err := s.g.executorPool.setRemoteExecuteResult(id, r.ExecuteInstruction.Result)
+			err := s.g.executorPool.setRemoteExecuteResult(id, r.Result.Result)
 			if err != nil {
 				return err
 			}

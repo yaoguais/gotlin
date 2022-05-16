@@ -108,22 +108,24 @@ type StartComputeNodeOption struct {
 }
 
 func (c *Client) StartComputeNode(ctx context.Context, r StartComputeNodeOption) error {
-	return c.handleInstructions(ctx, r.CallOptions)
+	return c.execute(ctx, r.CallOptions)
 }
 
-func (c *Client) handleInstructions(ctx context.Context, callOptions ClientCallOptions) error {
-	stream, err := c.c.ExecuteCommand(ctx, callOptions.GRPCOption()...)
+func (c *Client) execute(ctx context.Context, callOptions ClientCallOptions) error {
+	stream, err := c.c.Execute(ctx, callOptions.GRPCOption()...)
 	if err != nil {
 		return c.error(ErrRequest, err, "Client execute command")
 	}
 
-	r := &CommandFromRemote{
-		Type: CommandType_ConnectToServer,
+	r := &ExecuteStream{
+		Type: ExecuteStream_Connect,
 	}
 	err = stream.Send(r)
 	if err != nil {
 		return c.error(ErrRequest, err, "Client connect to server")
 	}
+
+	pc := pbConverter{}
 
 	for {
 
@@ -134,37 +136,14 @@ func (c *Client) handleInstructions(ctx context.Context, callOptions ClientCallO
 
 		println("client receive ==> ", r2.String())
 
-		if r2.Type == CommandType_ExecuteInstruction {
-			ts := []Instruction{}
-			ins := append([]*CommandToRemote_Instruction{}, r2.ExecuteInstruction.Op)
-			ins = append(ins, r2.ExecuteInstruction.Args...)
-			for i, in := range ins {
-				id, err := ParseInstructionID(in.Id)
-				if err != nil {
-					return c.error(ErrRequest, err, "Client parse instruction id %d", i)
-				}
-				var operand Operand
-				err = json.Unmarshal(in.GetOperand(), &operand)
-				if err != nil {
-					return c.error(ErrRequest, err, "Client unmarshal operand %d", i)
-				}
-				var result InstructionResult
-				err = json.Unmarshal(in.GetResult(), &result)
-				if err != nil {
-					return c.error(ErrRequest, err, "Client unmarshal operand %d", i)
-				}
-				t := Instruction{
-					ID:      id,
-					OpCode:  OpCode(in.GetOpcode()),
-					Operand: operand,
-					Result:  result,
-				}
-				ts = append(ts, t)
+		if r2.Type == ExecuteStream_Execute {
+			r3, err := pc.ParseExecuteStream(r2)
+			if err != nil {
+				return err
 			}
 
-			op := ts[0]
-			args := ts[1:]
-
+			op := r3.(executeStreamExecuteRequest).Op
+			args := r3.(executeStreamExecuteRequest).Args
 			handler, err := c.InstructionSet.GetExecutorHandler(op.OpCode)
 			if err != nil {
 				return err
@@ -178,19 +157,19 @@ func (c *Client) handleInstructions(ctx context.Context, callOptions ClientCallO
 				return c.error(ErrRequest, err, "Marshal remote result")
 			}
 
-			r3 := &CommandFromRemote{
+			r4 := &ExecuteStream{
 				Id:   r2.Id,
-				Type: CommandType_ExecuteInstruction,
-				ExecuteInstruction: &CommandFromRemote_ExecuteInstruction{
-					Id:     r2.ExecuteInstruction.GetOp().GetId(),
-					Opcode: r2.ExecuteInstruction.GetOp().GetOpcode(),
+				Type: ExecuteStream_Result,
+				Result: &InstructionPb{
+					Id:     op.ID.String(),
+					Opcode: op.OpCode.String(),
 					Result: data,
 				},
 			}
 
-			println("client send ==> ", r3.String())
+			println("client send ==> ", r4.String())
 
-			err = stream.Send(r3)
+			err = stream.Send(r4)
 			if err != nil {
 				return c.error(ErrRequest, err, "Client send Instruction execute result")
 			}
@@ -434,4 +413,39 @@ func (pbConverter) WaitResultResponseFromModel(r ProgramResult) *WaitResultRespo
 		Error:  error,
 		Result: result,
 	}
+}
+
+func (c pbConverter) ParseExecuteStream(r *ExecuteStream) (interface{}, error) {
+	switch r.Type {
+	case ExecuteStream_Connect:
+		return c.ParseExecuteStreamConnect(r)
+	case ExecuteStream_Execute:
+		return c.ParseExecuteStreamExecute(r)
+	case ExecuteStream_Result:
+		return c.ParseExecuteStreamResult(r)
+	default:
+		return nil, wrapError(ErrRequest, "Client receive invalid type %s", r.Type)
+	}
+}
+
+func (pbConverter) ParseExecuteStreamConnect(r *ExecuteStream) (interface{}, error) {
+	return struct{}{}, nil
+}
+
+type executeStreamExecuteRequest struct {
+	Op   Instruction
+	Args []Instruction
+}
+
+func (c pbConverter) ParseExecuteStreamExecute(r *ExecuteStream) (interface{}, error) {
+	result := executeStreamExecuteRequest{}
+	result.Op = c.InstructionToModel(r.Op).Instruction()
+	for _, v := range r.Args {
+		result.Args = append(result.Args, c.InstructionToModel(v).Instruction())
+	}
+	return result, nil
+}
+
+func (c pbConverter) ParseExecuteStreamResult(r *ExecuteStream) (interface{}, error) {
+	return c.InstructionToModel(r.Result), nil
 }
