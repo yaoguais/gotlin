@@ -2,7 +2,6 @@ package gotlin
 
 import (
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 )
 
 // Common Errors
@@ -23,6 +22,13 @@ var (
 	ErrConnect          = newError("Connect")
 	ErrRequest          = newError("Request")
 	ErrExitUnexpectedly = newError("Exit unexpectedly")
+)
+
+// Service Errors
+var (
+	ErrResponse = newError("Response")
+	ErrReceive  = newError("Receive")
+	ErrSend     = newError("Send")
 )
 
 // Executor Errors
@@ -76,14 +82,4 @@ func (e formatError) error(cause error, err error, args ...interface{}) error {
 	}
 	args = append(args, err)
 	return wrapError(cause, e.format+" %v", args...)
-}
-
-var logger Logger = logrus.NewEntry(logrus.StandardLogger())
-
-type Logger interface {
-	logrus.StdLogger
-}
-
-func SetLogger(l Logger) {
-	logger = l
 }

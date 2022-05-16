@@ -50,8 +50,21 @@ func (v ID) validate() error {
 	return nil
 }
 
+func (v ID) IsValid() bool {
+	return v.validate() == nil
+}
+
 func (v ID) String() string {
 	return v.value.String()
+}
+
+func (v ID) NonceString() string {
+	isEmpty := emptyUUIDRegexp.MatchString(v.nonce.String())
+	if !isEmpty {
+		return v.value.String() + ":" + v.nonce.String()
+	}
+	return v.value.String()
+
 }
 
 func (v ID) IsEqual(v2 ID) bool {
@@ -59,11 +72,7 @@ func (v ID) IsEqual(v2 ID) bool {
 }
 
 func (v ID) MarshalJSON() ([]byte, error) {
-	isEmpty := emptyUUIDRegexp.MatchString(v.nonce.String())
-	if !isEmpty {
-		return json.Marshal(v.value.String() + ":" + v.nonce.String())
-	}
-	return json.Marshal(v.value.String())
+	return json.Marshal(v.NonceString())
 }
 
 func (v ID) changeNonce() ID {
@@ -394,4 +403,15 @@ type ClientID = ID
 
 func NewClientID() ClientID {
 	return ClientID(NewID())
+}
+
+type ExecuteID = ID
+
+func NewExecuteID() ExecuteID {
+	return ExecuteID(NewID())
+}
+
+func ParseExecuteID(s string) (ExecuteID, error) {
+	v, err := ParseID(s)
+	return ExecuteID(v), err
 }

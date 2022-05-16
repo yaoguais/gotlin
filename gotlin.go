@@ -56,9 +56,12 @@ type Gotlin struct {
 	executorPool  *ExecutorPool
 	schedulerPool *SchedulerPool
 	gs            *grpc.Server
+	id            string
+	l             serverLogger
 }
 
 func NewGotlin(options ...Option) (*Gotlin, error) {
+	id := NewID().String()
 	g := &Gotlin{
 		SchedulerRepository:   NewSchedulerMemoryRepository(),
 		ProgramRepository:     NewProgramMemoryRepository(),
@@ -68,6 +71,8 @@ func NewGotlin(options ...Option) (*Gotlin, error) {
 		ServerAddress:         ":9527",
 		ServerExecutor:        true,
 		GRPCOption:            []grpc.ServerOption{},
+		id:                    id,
+		l:                     serverLogger{}.WithServer(id),
 	}
 
 	for _, o := range options {

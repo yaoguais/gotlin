@@ -14,7 +14,7 @@ type ExecutorPool struct {
 	executors map[ExecutorID]bool
 	ids       []ExecutorID
 	hs        map[Host]ExecutorID
-	cs        map[Host]*Commander
+	cs        map[Host]*executor
 	rs        map[ID][]byte
 	mu        sync.RWMutex
 }
@@ -26,7 +26,7 @@ func NewExecutorPool(er ExecutorRepository) *ExecutorPool {
 		executors:          make(map[ExecutorID]bool),
 		ids:                []ExecutorID{},
 		hs:                 make(map[Host]ExecutorID),
-		cs:                 make(map[Host]*Commander),
+		cs:                 make(map[Host]*executor),
 		rs:                 make(map[ID][]byte),
 		mu:                 sync.RWMutex{},
 	}
@@ -99,6 +99,16 @@ func (m *ExecutorPool) Remove(ctx context.Context, id ExecutorID, removeErr erro
 	return wrapError(err, "Remove Executor")
 }
 
+func (m *ExecutorPool) FindByHost(ctx context.Context, host Host) (ExecutorID, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	id, ok := m.hs[host]
+	if !ok {
+		return ExecutorID{}, ErrNotFound
+	}
+	return id, nil
+}
+
 func (m *ExecutorPool) find(ctx context.Context, op OpCode) (Executor, error) {
 	for _, id := range m.ids {
 		e, err := m.ExecutorRepository.Find(ctx, id)
@@ -137,10 +147,10 @@ func (m *ExecutorPool) Execute(ctx context.Context, op Instruction, args ...Inst
 			newErrorf("Remote Executor not found, %v", executor.ID.String())
 	}
 
-	return commander.ExecuteInstruction(ctx, op, args...)
+	return commander.Execute(ctx, op, args...)
 }
 
-func (m *ExecutorPool) attachCommander(c *Commander) error {
+func (m *ExecutorPool) attachExecutor(c *executor) error {
 	m.cs[c.host] = c
 	return nil
 }
@@ -150,7 +160,7 @@ func (m *ExecutorPool) attachRemoteExecute(id ID) error {
 	return nil
 }
 
-func (m *ExecutorPool) setRemoteExecuteResult(id ID, result []byte) error {
+func (m *ExecutorPool) setRemoteExecuteResult(id ExecuteID, result []byte) error {
 	if result == nil {
 		result = []byte{}
 	}
@@ -172,23 +182,29 @@ func (m *ExecutorPool) getRemoteExecuteResult(id ID) (InstructionResult, error) 
 	return result, err
 }
 
-type Commander struct {
+type executor struct {
 	ep     *ExecutorPool
 	host   Host
 	stream ServerService_ExecuteServer
+	l      serverLogger
 }
 
-func NewCommander(ep *ExecutorPool, host Host, stream ServerService_ExecuteServer) *Commander {
-	return &Commander{ep, host, stream}
+func newExecutor(ep *ExecutorPool, host Host, stream ServerService_ExecuteServer, l serverLogger) *executor {
+	return &executor{ep, host, stream, l}
 }
 
-func (c *Commander) ExecuteInstruction(ctx context.Context, op Instruction, args ...Instruction) (InstructionResult, error) {
+func (c *executor) Execute(ctx context.Context, op Instruction, args ...Instruction) (InstructionResult, error) {
+	id := NewExecuteID()
+
+	l := c.l.WithExecuteID(id.String()).WithExecute(op, args)
+	logger := l.Logger()
+	logger.Info("Find compute nodes and execute instructions")
+
 	ins := []Instructioner{}
 	for _, v := range args {
 		ins = append(ins, v)
 	}
 
-	id := NewID()
 	timeout := int64(3000)
 
 	pc := pbConverter{}
@@ -203,11 +219,13 @@ func (c *Commander) ExecuteInstruction(ctx context.Context, op Instruction, args
 
 	_ = c.ep.attachRemoteExecute(id)
 
-	println("server send ==> ", r.String())
+	logger.Debugf("Send an instruction to the compute node, %s", r)
+
 	err := c.stream.Send(r)
 	if err != nil {
 		return InstructionResult{}, newError("Send command to client")
 	}
+
 	time.Sleep(100 * time.Millisecond)
 
 	return c.ep.getRemoteExecuteResult(id)

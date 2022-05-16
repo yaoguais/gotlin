@@ -52,16 +52,20 @@ type Client struct {
 	ctx context.Context
 	cc  *grpc.ClientConn
 	c   ServerServiceClient
+	id  string
+	l   clientLogger
 	formatError
 }
 
 func NewClient(options ...ClientOption) (*Client, error) {
-	e := formatError{"Client " + NewClientID().String() + " %s"}
+	id := NewClientID().String()
 	c := &Client{
 		TargetAddress:  "127.0.0.1:9527",
 		InstructionSet: NewInstructionSet(),
 		ctx:            context.Background(),
-		formatError:    e,
+		id:             id,
+		l:              clientLogger{}.WithClient(id),
+		formatError:    formatError{"Client " + id + " %s"},
 	}
 
 	for _, o := range options {
@@ -108,75 +112,115 @@ type StartComputeNodeOption struct {
 }
 
 func (c *Client) StartComputeNode(ctx context.Context, r StartComputeNodeOption) error {
-	return c.execute(ctx, r.CallOptions)
+	return c.executeLoop(ctx, r.CallOptions)
 }
 
-func (c *Client) execute(ctx context.Context, callOptions ClientCallOptions) error {
+func (c *Client) executeLoop(ctx context.Context, callOptions ClientCallOptions) error {
+	logger := c.l.Logger()
+	logger.Info("The compute node is connecting to the server")
+
 	stream, err := c.c.Execute(ctx, callOptions.GRPCOption()...)
 	if err != nil {
-		return c.error(ErrRequest, err, "Client execute command")
+		return c.error(ErrRequest, err, "Client execute instructions")
 	}
 
-	r := &ExecuteStream{
-		Type: ExecuteStream_Connect,
-	}
+	r := &ExecuteStream{Id: NewExecuteID().String(), Type: ExecuteStream_Connect}
 	err = stream.Send(r)
 	if err != nil {
 		return c.error(ErrRequest, err, "Client connect to server")
 	}
 
-	pc := pbConverter{}
+	l := c.l.WithExecuteID(r.Id)
+	logger = l.Logger()
+	logger.Debugf("Send a connection instruction, %s", r)
+
+	logger.Info("The compute node has successfully connected to the server")
+	defer logger.Info("The compute node is disconnecting from the server")
 
 	for {
-
-		r2, err := stream.Recv()
+		err := c.execute(stream)
 		if err != nil {
-			return c.error(ErrRequest, err, "Client receive from server")
-		}
-
-		println("client receive ==> ", r2.String())
-
-		if r2.Type == ExecuteStream_Execute {
-			r3, err := pc.ParseExecuteStream(r2)
-			if err != nil {
-				return err
-			}
-
-			op := r3.(executeStreamExecuteRequest).Op
-			args := r3.(executeStreamExecuteRequest).Args
-			handler, err := c.InstructionSet.GetExecutorHandler(op.OpCode)
-			if err != nil {
-				return err
-			}
-			result, err := handler(ctx, op, args...)
-			if err != nil {
-				return err
-			}
-			data, err := json.Marshal(result)
-			if err != nil {
-				return c.error(ErrRequest, err, "Marshal remote result")
-			}
-
-			r4 := &ExecuteStream{
-				Id:   r2.Id,
-				Type: ExecuteStream_Result,
-				Result: &InstructionPb{
-					Id:     op.ID.String(),
-					Opcode: op.OpCode.String(),
-					Result: data,
-				},
-			}
-
-			println("client send ==> ", r4.String())
-
-			err = stream.Send(r4)
-			if err != nil {
-				return c.error(ErrRequest, err, "Client send Instruction execute result")
-			}
-		} else {
-			return c.error(ErrRequest, ErrUndoubted, "Client receive invalid type "+r2.Type.String())
+			logger.Errorf("The compute node execution error, %v", err)
+			return err
 		}
 	}
+}
+
+func (c *Client) execute(stream ServerService_ExecuteClient) error {
+	ctx := stream.Context()
+	pc := pbConverter{}
+
+	r, err := stream.Recv()
+	if err != nil {
+		return c.error(ErrRequest, err, "Client receive from server")
+	}
+
+	l := c.l.WithExecuteID(r.Id)
+	logger := l.Logger()
+	logger.Debugf("Received an instruction, %s", r)
+
+	if r.Type != ExecuteStream_Execute {
+		return c.error(ErrRequest, ErrUndoubted, "Client receive invalid type "+r.Type.String())
+	}
+
+	e, err := pc.ParseExecuteStream(r)
+	if err != nil {
+		return err
+	}
+
+	op := e.(executeStreamExecuteRequest).Op
+	args := e.(executeStreamExecuteRequest).Args
+
+	logger = l.WithExecute(op, args).Logger()
+	logger.Info("Preparing to execute an instruction")
+
+	handler, err := c.InstructionSet.GetExecutorHandler(op.OpCode)
+	if err != nil {
+		return err
+	}
+
+	result, err := handler(ctx, op, args...)
+	if err != nil {
+		logger.Warn("An exception occurred while executing an instruction")
+	}
+	err = c.sendResult(stream, r, result, err, logger)
+	if err == nil {
+		logger.Info("Instruction was executed successfully")
+	}
+	return err
+}
+
+func (c *Client) sendResult(stream ServerService_ExecuteClient,
+	rr *ExecuteStream, result InstructionResult, handleErr error, logger Logger) error {
+
+	if handleErr != nil {
+		r := &ExecuteStream{
+			Id:    rr.Id,
+			Type:  ExecuteStream_Result,
+			Error: handleErr.Error(),
+		}
+		logger.Debugf("Send the result of an instruction, %s", r)
+		err := stream.Send(r)
+		return c.error(ErrRequest, err, "Client send Instruction execute result")
+	}
+
+	data, err := json.Marshal(result)
+	if err != nil {
+		return c.error(ErrRequest, err, "Marshal remote result")
+	}
+
+	r := &ExecuteStream{
+		Id:   rr.Id,
+		Type: ExecuteStream_Result,
+		Result: &InstructionPb{
+			Id:     rr.Op.Id,
+			Opcode: rr.Op.Opcode,
+			Result: data,
+		},
+	}
+	logger.Debugf("Send the result of an instruction, %s", r)
+	err = stream.Send(r)
+	return c.error(ErrRequest, err, "Client send Instruction execute result")
 }
 
 type RequestSchedulerOption struct {
