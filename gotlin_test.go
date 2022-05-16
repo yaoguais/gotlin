@@ -16,7 +16,6 @@ import (
 
 	"github.com/pkg/profile"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	glogger "gorm.io/gorm/logger"
@@ -109,6 +108,48 @@ func getTestProgram2(t require.TestingT) (Program, []Instructioner) {
 	for _, in := range ins {
 		p = p.AddInstruction(in.Instruction().ID)
 	}
+
+	p, ok := p.ChangeState(StateReady)
+	require.True(t, ok)
+
+	return p, ins
+}
+
+// Perform an arithmetic calculation "( 2 + 1 ) * 4 / 1", the expected result is 12
+func getTestProgram3(t require.TestingT) (Program, []Instructioner) {
+	b := int(100 * time.Millisecond)
+	i1 := NewInstruction().ChangeToWait(2 * b)
+	i2 := NewInstruction().ChangeToWait(1 * b)
+	i3 := NewInstruction().ChangeToArithmetic(OpCodeAdd)
+	i4 := NewInstruction().ChangeImmediateValue(4)
+	i5 := NewInstruction().ChangeToArithmetic(OpCodeMul)
+	i6 := NewInstruction().ChangeImmediateValue(1 * b)
+	i7 := NewInstruction().ChangeToArithmetic(OpCodeDiv)
+
+	ins := []Instructioner{i1, i2, i3, i4, i5, i6, i7}
+
+	p := NewProgram()
+	for _, in := range ins {
+		p = p.AddInstruction(in.Instruction().ID)
+	}
+
+	d := NewInstructionDAG()
+
+	ids := []InstructionID{}
+	for _, v := range ins {
+		ids = append(ids, v.Instruction().ID)
+	}
+	err := d.Add(ids...)
+	require.Nil(t, err)
+
+	err = d.AttachChildren(i3.ID, i1.ID, i2.ID)
+	require.Nil(t, err)
+	err = d.AttachChildren(i5.ID, i3.ID, i4.ID)
+	require.Nil(t, err)
+	err = d.AttachChildren(i7.ID, i5.ID, i6.ID)
+	require.Nil(t, err)
+
+	p = p.ChangeProcessor(NewDAGProcessorContext(d, 8))
 
 	p, ok := p.ChangeState(StateReady)
 	require.True(t, ok)
@@ -343,103 +384,6 @@ func TestGotlin_CollectionInstruction(t *testing.T) {
 
 		assertProgramExecuteResult(t, q.Result, result)
 	}
-}
-
-func TestGotlin_RemoteExecutorViaGRPC(t *testing.T) {
-	ctx := context.Background()
-
-	db := getTestDB()
-
-	g, err := NewGotlin(WithDatabase(db), WithServerExecutor(false), WithEnableServer(true))
-	require.Nil(t, err)
-
-	go func() {
-		err := g.StartServer(ctx)
-		if err != nil {
-			panic(err)
-		}
-	}()
-	defer g.StopServer(false)
-
-	time.Sleep(100 * time.Millisecond)
-
-	p, ins := getTestProgram(t)
-
-	s, err := g.RequestScheduler(ctx, NewSchedulerOption())
-	require.Nil(t, err)
-
-	c, err := NewClient(WithClientGRPCOptions(grpc.WithInsecure()))
-	require.Nil(t, err)
-
-	option := RegisterExecutorOption{
-		ID:     NewExecutorID(),
-		Host:   "127.0.0.1:0",
-		Labels: NewLabels().Add(NewDefaultOpCodeLabel()),
-	}
-	err = c.RegisterExecutor(ctx, option)
-	require.Nil(t, err)
-
-	go func() {
-		_ = c.StartComputeNode(ctx, StartComputeNodeOption{})
-	}()
-
-	time.Sleep(100 * time.Millisecond)
-
-	err = g.RunProgram(ctx, s, p, ins)
-	require.Nil(t, err)
-
-	time.Sleep(3000 * time.Millisecond)
-
-	result, err := g.QueryResult(ctx, p)
-	require.Nil(t, err)
-
-	assertProgramExecuteResult(t, 12, result)
-}
-
-func TestGotlin_RemoteClientViaGRPC(t *testing.T) {
-	time.Sleep(time.Second)
-
-	ctx := context.Background()
-
-	db := getTestDB()
-
-	g, err := NewGotlin(WithDatabase(db), WithServerExecutor(true), WithEnableServer(true))
-	require.Nil(t, err)
-
-	go func() {
-		err := g.StartServer(ctx)
-		if err != nil {
-			panic(err)
-		}
-	}()
-	defer g.StopServer(false)
-
-	time.Sleep(time.Second)
-
-	p, ins := getTestProgram(t)
-
-	c, err := NewClient(WithClientGRPCOptions(grpc.WithInsecure()))
-	require.Nil(t, err)
-
-	s, err := c.RequestScheduler(ctx, RequestSchedulerOption{})
-	require.Nil(t, err)
-
-	err = c.RunProgram(ctx, RunProgramOption{SchedulerID: s, Program: p, Instructions: ins})
-	require.Nil(t, err)
-
-	ch, err := c.WaitResult(context.Background())
-	require.Nil(t, err)
-
-	result := ProgramResult{}
-	select {
-	case <-time.After(time.Second):
-	case result = <-ch:
-	}
-
-	require.Nil(t, result.Error)
-	value := 0
-	_ = json.Unmarshal(result.Result.([]byte), &value)
-	assertProgramExecuteResult(t, 12, value)
 }
 
 func TestGotlin_InstructionRef(t *testing.T) {

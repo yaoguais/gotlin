@@ -147,7 +147,6 @@ func (c *Client) executeLoop(ctx context.Context, callOptions ClientCallOptions)
 }
 
 func (c *Client) execute(stream ServerService_ExecuteClient) error {
-	ctx := stream.Context()
 	pc := pbConverter{}
 
 	r, err := stream.Recv()
@@ -179,15 +178,27 @@ func (c *Client) execute(stream ServerService_ExecuteClient) error {
 		return err
 	}
 
-	result, err := handler(ctx, op, args...)
-	if err != nil {
-		logger.Warn("An exception occurred while executing an instruction")
-	}
-	err = c.sendResult(stream, r, result, err, logger)
-	if err == nil {
-		logger.Info("Instruction was executed successfully")
-	}
-	return err
+	return c.executeAsync(stream, handler, op, args, r, logger)
+}
+
+func (c *Client) executeAsync(stream ServerService_ExecuteClient,
+	handler ExecutorHandler, op Instruction, args []Instruction, rr *ExecuteStream, logger Logger) error {
+
+	// TODO fix max gotoutines limits
+	go func() error {
+		ctx := stream.Context()
+		result, err := handler(ctx, op, args...)
+		if err != nil {
+			logger.Warn("An exception occurred while executing an instruction")
+		}
+		err = c.sendResult(stream, rr, result, err, logger)
+		if err == nil {
+			logger.Info("Instruction was executed successfully")
+		}
+		return err
+	}()
+
+	return nil
 }
 
 func (c *Client) sendResult(stream ServerService_ExecuteClient,

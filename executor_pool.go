@@ -2,7 +2,6 @@ package gotlin
 
 import (
 	"context"
-	"fmt"
 	"sync"
 )
 
@@ -170,15 +169,23 @@ type executor struct {
 	ep     *ExecutorPool
 	host   Host
 	stream ServerService_ExecuteServer
+	o      sync.Once
+	sub    map[string]*subInstructionResult
+	mu     sync.Mutex
 	l      serverLogger
 	formatError
 }
 
 func newExecutor(ep *ExecutorPool, host Host, stream ServerService_ExecuteServer, l serverLogger, fe formatError) *executor {
-	return &executor{ep, host, stream, l, fe}
+	o := sync.Once{}
+	mu := sync.Mutex{}
+	sub := make(map[string]*subInstructionResult)
+	return &executor{ep, host, stream, o, sub, mu, l, fe}
 }
 
 func (e *executor) Execute(ctx context.Context, op Instruction, args ...Instruction) (InstructionResult, error) {
+	e.preExecuting()
+
 	id := NewExecuteID()
 
 	l := e.l.WithExecuteID(id.String()).WithExecute(op, args)
@@ -204,30 +211,54 @@ func (e *executor) Execute(ctx context.Context, op Instruction, args ...Instruct
 
 	logger.Debugf("Send an instruction to the compute node, %s", r)
 
+	sub := newSubInstructionResult()
+	e.mu.Lock()
+	e.sub[r.Id] = sub
+	e.mu.Unlock()
+
+	defer func() {
+		e.mu.Lock()
+		delete(e.sub, r.Id)
+		e.mu.Unlock()
+		sub.Close()
+	}()
+
 	err := e.stream.Send(r)
 	if err != nil {
 		return InstructionResult{}, newError("Send command to client")
 	}
 
-	return e.waitResult(r)
+	return <-sub.ch, <-sub.errCh
 }
 
-func (e *executor) waitResult(rr *ExecuteStream) (InstructionResult, error) {
+func (e *executor) preExecuting() {
+	e.o.Do(func() {
+		go e.waitLoop()
+	})
+}
+
+func (e *executor) waitLoop() {
+	for {
+		id, ir, err := e.waitResult()
+		e.mu.Lock()
+		sub, ok := e.sub[id]
+		e.mu.Unlock()
+		if ok {
+			sub.Send(ir, err)
+		}
+	}
+}
+
+func (e *executor) waitResult() (id string, ir InstructionResult, err error) {
 	r, err := e.stream.Recv()
 	if err != nil {
-		return InstructionResult{},
+		return "", InstructionResult{},
 			e.error(ErrReceive, err, "Read instruction execution results from computing nodes")
 	}
 
 	if r.Type != ExecuteStream_Result {
-		return InstructionResult{},
+		return "", InstructionResult{},
 			e.error(ErrResponse, ErrUndoubted, "Server receive invalid type "+r.Type.String())
-	}
-
-	// TODO execute concurrently
-	if r.Id != rr.Id {
-		msg := fmt.Sprintf("Server receive invalid id, send %s receive %s", rr.Id, r.Id)
-		return InstructionResult{}, e.error(ErrResponse, ErrUndoubted, msg)
 	}
 
 	l := e.l.WithExecuteID(r.Id)
@@ -238,5 +269,40 @@ func (e *executor) waitResult(rr *ExecuteStream) (InstructionResult, error) {
 	pc := pbConverter{}
 	in := pc.InstructionToModel(r.Result).Instruction()
 
-	return in.Result, nil
+	return r.Id, in.Result, nil
+}
+
+type subInstructionResult struct {
+	ch     chan InstructionResult
+	errCh  chan error
+	mu     sync.Mutex
+	closed bool
+}
+
+func newSubInstructionResult() *subInstructionResult {
+	return &subInstructionResult{
+		ch:     make(chan InstructionResult, 1),
+		errCh:  make(chan error, 1),
+		mu:     sync.Mutex{},
+		closed: false,
+	}
+}
+
+func (s *subInstructionResult) Send(v InstructionResult, err error) {
+	s.mu.Lock()
+	if !s.closed {
+		s.ch <- v
+		s.errCh <- err
+	}
+	s.mu.Unlock()
+}
+
+func (s *subInstructionResult) Close() {
+	s.mu.Lock()
+	if !s.closed {
+		s.closed = true
+		close(s.ch)
+		close(s.errCh)
+	}
+	s.mu.Unlock()
 }

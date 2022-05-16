@@ -122,6 +122,7 @@ func ParseInstructionID(s string) (InstructionID, error) {
 type OpCode string
 
 const (
+	OpCodeWait      OpCode = "WAIT"
 	OpCodeAdd       OpCode = "ADD"
 	OpCodeSub       OpCode = "SUB"
 	OpCodeMul       OpCode = "MUL"

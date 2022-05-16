@@ -3,6 +3,7 @@ package gotlin
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/spf13/cast"
 )
@@ -75,6 +76,10 @@ func (m *InstructionSet) registerDefaults() {
 }
 
 var (
+	WaitInstructionHandler = InstructionHandler{
+		OpCode:   OpCodeWait,
+		Executor: ExecuteWaitInstruction,
+	}
 	MoveInstructionHandler = InstructionHandler{
 		OpCode:   OpCodeMove,
 		Executor: ExecuteMoveInstruction,
@@ -114,6 +119,7 @@ var (
 )
 
 var DefaultInstructionHandlers = []InstructionHandler{
+	WaitInstructionHandler,
 	MoveInstructionHandler,
 	InputInstructionHandler,
 	AddInstructionHandler,
@@ -169,11 +175,21 @@ func ExecuteArithmeticInstruction(ctx context.Context, op Instruction, args ...I
 	return NewRegisterResult(result), nil
 }
 
+func ExecuteWaitInstruction(ctx context.Context, op Instruction, args ...Instruction) (InstructionResult, error) {
+	v, err := op.OperandValue(ctx)
+	if err != nil {
+		return InstructionResult{},
+			wrapError(err, "Get wait instruction operands, %s", op.ID)
+	}
+	time.Sleep(cast.ToDuration(v))
+	return NewRegisterResult(v), nil
+}
+
 func ExecuteMoveInstruction(ctx context.Context, op Instruction, args ...Instruction) (InstructionResult, error) {
 	v, err := op.OperandValue(ctx)
 	if err != nil {
 		return InstructionResult{},
-			wrapError(err, "Get move instruction operands, %v", op.ID.String())
+			wrapError(err, "Get move instruction operands, %s", op.ID)
 	}
 	return NewRegisterResult(v), nil
 }
@@ -182,7 +198,7 @@ func ExecuteInputInstruction(ctx context.Context, op Instruction, args ...Instru
 	v, err := op.OperandValue(ctx)
 	if err != nil {
 		return InstructionResult{},
-			wrapError(err, "Get in instruction operands, %v", op.ID.String())
+			wrapError(err, "Get in instruction operands, %s", op.ID)
 	}
 	return NewRegisterResult(v), nil
 }

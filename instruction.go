@@ -53,6 +53,12 @@ func (m Instruction) ChangeImmediateValue(value interface{}) Instruction {
 	return m
 }
 
+func (m Instruction) ChangeToWait(value interface{}) Instruction {
+	m.OpCode = OpCodeWait
+	m.Operand = NewImmediateValue(value)
+	return m
+}
+
 func (m Instruction) ChangeDatabaseQuery(v DatabaseQuery) Instruction {
 	m.OpCode = OpCodeIn
 	m.Operand = NewDatabaseQueryOperand(v)
