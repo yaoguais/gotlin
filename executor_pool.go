@@ -2,9 +2,8 @@ package gotlin
 
 import (
 	"context"
-	"encoding/json"
+	"fmt"
 	"sync"
-	"time"
 )
 
 type ExecutorPool struct {
@@ -15,7 +14,6 @@ type ExecutorPool struct {
 	ids       []ExecutorID
 	hs        map[Host]ExecutorID
 	cs        map[Host]*executor
-	rs        map[ID][]byte
 	mu        sync.RWMutex
 }
 
@@ -27,20 +25,14 @@ func NewExecutorPool(er ExecutorRepository) *ExecutorPool {
 		ids:                []ExecutorID{},
 		hs:                 make(map[Host]ExecutorID),
 		cs:                 make(map[Host]*executor),
-		rs:                 make(map[ID][]byte),
 		mu:                 sync.RWMutex{},
 	}
 }
 
-func (m *ExecutorPool) getDefaultExecutor() Executor {
+func (m *ExecutorPool) AddServerExecutor() error {
 	executor := NewExecutor()
 	executor = executor.AddLabel(NewDefaultOpCodeLabel())
 	executor, _ = executor.ChangeState(StateRunning)
-	return executor
-}
-
-func (m *ExecutorPool) AddServerExecutor() error {
-	executor := m.getDefaultExecutor()
 	err := m.Add(context.Background(), executor)
 	return wrapError(err, "Add server-side Executor")
 }
@@ -102,6 +94,7 @@ func (m *ExecutorPool) Remove(ctx context.Context, id ExecutorID, removeErr erro
 func (m *ExecutorPool) FindByHost(ctx context.Context, host Host) (ExecutorID, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
+
 	id, ok := m.hs[host]
 	if !ok {
 		return ExecutorID{}, ErrNotFound
@@ -109,77 +102,68 @@ func (m *ExecutorPool) FindByHost(ctx context.Context, host Host) (ExecutorID, e
 	return id, nil
 }
 
-func (m *ExecutorPool) find(ctx context.Context, op OpCode) (Executor, error) {
-	for _, id := range m.ids {
-		e, err := m.ExecutorRepository.Find(ctx, id)
+func (m *ExecutorPool) GetExecuteHandler(ctx context.Context, op OpCode) (eh ExecutorHandler, err error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	e, found := Executor{}, false
+
+	for i := len(m.ids) - 1; i >= 0; i-- {
+		id := m.ids[i]
+		e, err = m.ExecutorRepository.Find(ctx, id)
 		if err != nil {
-			return Executor{}, err
+			return nil, err
 		}
 		ok := e.IsState(StateRunning) && e.Labels.ExistOpCode(op)
 		if ok {
-			return e, nil
+			found = true
+			break
 		}
 	}
 
-	return Executor{}, newErrorf("Executor not found, opcode %s", op)
+	if !found {
+		return nil, newErrorf("Executor not found, opcode %s", op)
+	}
+
+	if e.IsEmptyHost() {
+		return m.is.GetExecutorHandler(op)
+	}
+
+	ec, ok := m.cs[e.Host]
+	if !ok {
+		return nil, newErrorf("Remote Executor %s not found", e.ID)
+	}
+
+	return ec.Execute, nil
 }
 
 func (m *ExecutorPool) Execute(ctx context.Context, op Instruction, args ...Instruction) (InstructionResult, error) {
-	// m.mu.RLock()
-	// defer m.mu.RUnlock()
-
-	executor, err := m.find(ctx, op.OpCode)
+	handler, err := m.GetExecuteHandler(ctx, op.OpCode)
 	if err != nil {
 		return InstructionResult{}, err
 	}
-
-	if executor.IsEmptyHost() {
-		handler, err := m.is.GetExecutorHandler(op.OpCode)
-		if err != nil {
-			return InstructionResult{}, err
-		}
-		return handler(ctx, op, args...)
-	}
-
-	commander, ok := m.cs[executor.Host]
-	if !ok {
-		return InstructionResult{},
-			newErrorf("Remote Executor not found, %v", executor.ID.String())
-	}
-
-	return commander.Execute(ctx, op, args...)
+	return handler(ctx, op, args...)
 }
 
-func (m *ExecutorPool) attachExecutor(c *executor) error {
+func (m *ExecutorPool) Attach(c *executor) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	m.cs[c.host] = c
 	return nil
 }
 
-func (m *ExecutorPool) attachRemoteExecute(id ID) error {
-	m.rs[id] = nil
-	return nil
-}
+func (m *ExecutorPool) Detach(c *executor) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
-func (m *ExecutorPool) setRemoteExecuteResult(id ExecuteID, result []byte) error {
-	if result == nil {
-		result = []byte{}
-	}
-
-	m.rs[id] = result
-
-	return nil
-}
-
-func (m *ExecutorPool) getRemoteExecuteResult(id ID) (InstructionResult, error) {
-	data, ok := m.rs[id]
+	_, ok := m.cs[c.host]
 	if !ok {
-		return InstructionResult{}, newError("Remote Instruction execute timeout")
+		return wrapError(ErrNotFound, "Executor %s", c.host)
 	}
-	delete(m.rs, id)
+	delete(m.cs, c.host)
 
-	var result InstructionResult
-	err := json.Unmarshal(data, &result)
-	return result, err
+	return nil
 }
 
 type executor struct {
@@ -187,16 +171,17 @@ type executor struct {
 	host   Host
 	stream ServerService_ExecuteServer
 	l      serverLogger
+	formatError
 }
 
-func newExecutor(ep *ExecutorPool, host Host, stream ServerService_ExecuteServer, l serverLogger) *executor {
-	return &executor{ep, host, stream, l}
+func newExecutor(ep *ExecutorPool, host Host, stream ServerService_ExecuteServer, l serverLogger, fe formatError) *executor {
+	return &executor{ep, host, stream, l, fe}
 }
 
-func (c *executor) Execute(ctx context.Context, op Instruction, args ...Instruction) (InstructionResult, error) {
+func (e *executor) Execute(ctx context.Context, op Instruction, args ...Instruction) (InstructionResult, error) {
 	id := NewExecuteID()
 
-	l := c.l.WithExecuteID(id.String()).WithExecute(op, args)
+	l := e.l.WithExecuteID(id.String()).WithExecute(op, args)
 	logger := l.Logger()
 	logger.Info("Find compute nodes and execute instructions")
 
@@ -205,7 +190,7 @@ func (c *executor) Execute(ctx context.Context, op Instruction, args ...Instruct
 		ins = append(ins, v)
 	}
 
-	timeout := int64(3000)
+	timeout := int64(3000) // TODO
 
 	pc := pbConverter{}
 
@@ -217,16 +202,41 @@ func (c *executor) Execute(ctx context.Context, op Instruction, args ...Instruct
 		Args:    pc.InstructionersToPb(ins),
 	}
 
-	_ = c.ep.attachRemoteExecute(id)
-
 	logger.Debugf("Send an instruction to the compute node, %s", r)
 
-	err := c.stream.Send(r)
+	err := e.stream.Send(r)
 	if err != nil {
 		return InstructionResult{}, newError("Send command to client")
 	}
 
-	time.Sleep(100 * time.Millisecond)
+	return e.waitResult(r)
+}
 
-	return c.ep.getRemoteExecuteResult(id)
+func (e *executor) waitResult(rr *ExecuteStream) (InstructionResult, error) {
+	r, err := e.stream.Recv()
+	if err != nil {
+		return InstructionResult{},
+			e.error(ErrReceive, err, "Read instruction execution results from computing nodes")
+	}
+
+	if r.Type != ExecuteStream_Result {
+		return InstructionResult{},
+			e.error(ErrResponse, ErrUndoubted, "Server receive invalid type "+r.Type.String())
+	}
+
+	// TODO execute concurrently
+	if r.Id != rr.Id {
+		msg := fmt.Sprintf("Server receive invalid id, send %s receive %s", rr.Id, r.Id)
+		return InstructionResult{}, e.error(ErrResponse, ErrUndoubted, msg)
+	}
+
+	l := e.l.WithExecuteID(r.Id)
+	logger := l.Logger()
+
+	logger.Debugf("Received the result of an instruction, %s", r)
+
+	pc := pbConverter{}
+	in := pc.InstructionToModel(r.Result).Instruction()
+
+	return in.Result, nil
 }

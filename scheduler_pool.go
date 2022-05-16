@@ -17,7 +17,7 @@ type SchedulerPool struct {
 	mu           sync.RWMutex
 	wg           sync.WaitGroup
 	pub          chan ProgramResult
-	sub          map[int]chan ProgramResult
+	sub          map[int]*subProgramResult
 	i            int
 	once         sync.Once
 }
@@ -33,7 +33,7 @@ func NewSchedulerPool(ep *ExecutorPool, sr SchedulerRepository, pr ProgramReposi
 		programs:     make(map[ProgramID]bool),
 		instructions: make(map[InstructionID]bool),
 		pub:          make(chan ProgramResult, 1024),
-		sub:          make(map[int]chan ProgramResult),
+		sub:          make(map[int]*subProgramResult),
 	}
 }
 
@@ -143,42 +143,43 @@ type ProgramResult struct {
 }
 
 func (sp *SchedulerPool) WaitResult(ctx context.Context) (chan ProgramResult, error) {
+	sp.preWaiting()
 
-	sp.once.Do(func() {
-		go func() {
-			for v := range sp.pub {
-				sp.mu.RLock()
-				for _, ch := range sp.sub {
-					ch := ch
-					v := v
-					go func() {
-						defer func() {
-							_ = recover()
-						}()
-						ch <- v
-					}()
-				}
-				sp.mu.RUnlock()
-			}
-		}()
-	})
-
-	ch := make(chan ProgramResult, 1024)
+	sub := newSubProgramResult()
 	sp.mu.Lock()
 	i := sp.i
 	sp.i++
-	sp.sub[i] = ch
+	sp.sub[i] = sub
 	sp.mu.Unlock()
 
 	go func() {
 		<-ctx.Done()
 		sp.mu.Lock()
 		delete(sp.sub, i)
-		close(ch)
 		sp.mu.Unlock()
+		sub.Close()
 	}()
 
-	return ch, nil
+	return sub.ch, nil
+}
+
+func (sp *SchedulerPool) preWaiting() {
+	sp.once.Do(func() {
+		go func() {
+			for v := range sp.pub {
+				cs := []*subProgramResult{}
+				sp.mu.RLock()
+				for _, ch := range sp.sub {
+					cs = append(cs, ch)
+				}
+				sp.mu.RUnlock()
+
+				for _, sub := range cs {
+					sub.Send(v)
+				}
+			}
+		}()
+	})
 }
 
 func (sp *SchedulerPool) QueryResult(ctx context.Context, p Program) (interface{}, error) {
@@ -406,4 +407,39 @@ func (sp *SchedulerPool) queryResult(ctx context.Context, p Program) (interface{
 	}
 
 	return nil, newError("The type of Processor is wrong")
+}
+
+type subProgramResult struct {
+	ch     chan ProgramResult
+	mu     sync.Mutex
+	closed bool
+}
+
+func newSubProgramResult() *subProgramResult {
+	return &subProgramResult{
+		ch:     make(chan ProgramResult, 1024),
+		mu:     sync.Mutex{},
+		closed: false,
+	}
+}
+
+func (s *subProgramResult) Send(v ProgramResult) {
+	go s.send(v) // TODO fix max gotoutines limits
+}
+
+func (s *subProgramResult) send(v ProgramResult) {
+	s.mu.Lock()
+	if !s.closed {
+		s.ch <- v
+	}
+	s.mu.Unlock()
+}
+
+func (s *subProgramResult) Close() {
+	s.mu.Lock()
+	if !s.closed {
+		s.closed = true
+		close(s.ch)
+	}
+	s.mu.Unlock()
 }

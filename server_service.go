@@ -2,7 +2,6 @@ package gotlin
 
 import (
 	"context"
-	"io"
 
 	"google.golang.org/grpc/peer"
 )
@@ -86,53 +85,19 @@ func (s *serverService) executeLoop(stream ServerService_ExecuteServer) error {
 	l = s.l.WithExecutor(executorID.String(), host)
 	logger = l.Logger()
 
-	executor := newExecutor(s.g.executorPool, host, stream, l)
-	err = s.g.executorPool.attachExecutor(executor)
+	executor := newExecutor(s.g.executorPool, host, stream, l, s.formatError)
+	err = s.g.executorPool.Attach(executor)
 	if err != nil {
 		return s.error(ErrResponse, err, "Add compute nodes to the compute pool")
 	}
+	defer s.g.executorPool.Detach(executor)
 
 	logger.Info("A new compute node is successfully connected")
 	defer logger.Info("The compute node has been disconnected")
 
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-		}
+	<-ctx.Done()
 
-		err := s.execute(stream, l)
-		if err != nil {
-			return err
-		}
-	}
-}
-
-func (s *serverService) execute(stream ServerService_ExecuteServer, l serverLogger) error {
-	r, err := stream.Recv()
-	if err == io.EOF {
-		return nil
-	} else if err != nil {
-		return s.error(ErrReceive, err, "Read instruction execution results from computing nodes")
-	}
-
-	if r.Type != ExecuteStream_Result {
-		return s.error(ErrResponse, ErrUndoubted, "Server receive invalid type "+r.Type.String())
-	}
-
-	l = l.WithExecuteID(r.Id)
-	logger := l.Logger()
-
-	logger.Debugf("Received the result of an instruction, %s", r)
-
-	id, err := ParseExecuteID(r.Id)
-	if err != nil {
-		return s.error(ErrResponse, err, "Parse execute ID")
-	}
-
-	err = s.g.executorPool.setRemoteExecuteResult(id, r.Result.Result)
-	return s.error(ErrResponse, err, "Save the execution result of the instruction")
+	return nil
 }
 
 func (s *serverService) RequestScheduler(ctx context.Context, r *RequestSchedulerRequest) (*RequestSchedulerResponse, error) {
