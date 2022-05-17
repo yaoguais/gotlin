@@ -10,11 +10,6 @@ import (
 	"github.com/gofrs/uuid"
 )
 
-var (
-	BinaryMarshalFunc   = json.Marshal
-	BinaryUnmarshalFunc = json.Unmarshal
-)
-
 type ID struct {
 	value uuid.UUID
 	nonce uuid.UUID
@@ -281,7 +276,7 @@ func NewScheduledPrograms() ScheduledPrograms {
 func (v ScheduledPrograms) AddProgram(id ProgramID) ScheduledPrograms {
 	found := false
 	for _, old := range v.Programs {
-		if old == id {
+		if old.IsEqual(id) {
 			found = true
 			break
 		}
@@ -368,13 +363,6 @@ type Label struct {
 
 func NewLabel(k, v string) Label {
 	return Label{k, v}
-}
-func NewDefaultOpCodeLabel() Label {
-	opcodes := []string{}
-	for _, v := range DefaultInstructionHandlers {
-		opcodes = append(opcodes, string(v.OpCode))
-	}
-	return NewLabel(OpCodeLabelKey, strings.Join(opcodes, ","))
 }
 
 type Host string

@@ -3,6 +3,8 @@ package gotlin
 import (
 	"context"
 	"encoding/json"
+
+	"github.com/vmihailenco/msgpack/v5"
 )
 
 type InstructionResult struct {
@@ -33,12 +35,16 @@ func (v InstructionResult) RegisterValue() (interface{}, bool) {
 }
 
 func (v *InstructionResult) UnmarshalJSON(data []byte) (err error) {
+	return v.unmarshalJSON(data, json.Unmarshal)
+}
+
+func (v *InstructionResult) unmarshalJSON(data []byte, f Unmarshal) (err error) {
 	root := struct {
 		Type   string
 		Result json.RawMessage
 	}{}
 
-	err = json.Unmarshal(data, &root)
+	err = f(data, &root)
 	if err != nil {
 		return
 	}
@@ -50,10 +56,43 @@ func (v *InstructionResult) UnmarshalJSON(data []byte) (err error) {
 
 	switch root.Type {
 	case emptyResult.Type():
-		err = json.Unmarshal(root.Result, &emptyResult)
+		err = f(root.Result, &emptyResult)
 		*v = InstructionResult{Type: root.Type, Result: emptyResult}
 	case registerResult.Type():
-		err = json.Unmarshal(root.Result, &registerResult)
+		err = f(root.Result, &registerResult)
+		*v = InstructionResult{Type: root.Type, Result: registerResult}
+	default:
+		return newErrorf("Unmarshal Operand for type %s", root.Type)
+	}
+	return
+}
+
+func (v *InstructionResult) UnmarshalMsgpack(data []byte) error {
+	return v.unmarshalMsgpack(data, msgpack.Unmarshal)
+}
+
+func (v *InstructionResult) unmarshalMsgpack(data []byte, f Unmarshal) (err error) {
+	root := struct {
+		Type   string
+		Result msgpack.RawMessage
+	}{}
+
+	err = f(data, &root)
+	if err != nil {
+		return
+	}
+
+	var (
+		emptyResult    = EmptyResult{}
+		registerResult = RegisterResult{}
+	)
+
+	switch root.Type {
+	case emptyResult.Type():
+		err = f(root.Result, &emptyResult)
+		*v = InstructionResult{Type: root.Type, Result: emptyResult}
+	case registerResult.Type():
+		err = f(root.Result, &registerResult)
 		*v = InstructionResult{Type: root.Type, Result: registerResult}
 	default:
 		return newErrorf("Unmarshal Operand for type %s", root.Type)

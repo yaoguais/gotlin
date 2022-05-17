@@ -101,7 +101,10 @@ func (s *serverService) executeLoop(stream ServerService_ExecuteServer) error {
 }
 
 func (s *serverService) RequestScheduler(ctx context.Context, r *RequestSchedulerRequest) (*RequestSchedulerResponse, error) {
-	option := pbConverter{}.RequestSchedulerRequestToModel(r)
+	option, err := pbConverter{}.RequestSchedulerRequestToModel(r)
+	if err != nil {
+		return nil, s.error(ErrConverter, err, "RequestSchedulerRequest")
+	}
 	id, err := s.g.RequestScheduler(ctx, option)
 	if err != nil {
 		return nil, err
@@ -113,11 +116,20 @@ func (s *serverService) RequestScheduler(ctx context.Context, r *RequestSchedule
 
 func (s *serverService) RunProgram(ctx context.Context, r *RunProgramRequest) (*RunProgramResponse, error) {
 	pc := pbConverter{}
-	id, _ := ParseSchedulerID(r.SchedulerId)
-	p := pc.ProgramToModel(r.Program)
-	ins := pc.InstructionToModels(r.Instructions)
+	id, err := ParseSchedulerID(r.SchedulerId)
+	if err != nil {
+		return nil, s.error(ErrConverter, err, "RunProgramRequest")
+	}
+	p, err := pc.ProgramToModel(r.Program)
+	if err != nil {
+		return nil, s.error(ErrConverter, err, "RunProgramRequest")
+	}
+	ins, err := pc.InstructionToModels(r.Instructions)
+	if err != nil {
+		return nil, s.error(ErrConverter, err, "RunProgramRequest")
+	}
 
-	err := s.g.RunProgram(context.Background(), id, p, ins)
+	err = s.g.RunProgram(context.Background(), id, p, ins)
 	if err != nil {
 		return nil, err
 	}
@@ -126,14 +138,23 @@ func (s *serverService) RunProgram(ctx context.Context, r *RunProgramRequest) (*
 
 func (s *serverService) WaitResult(r *WaitResultRequest, stream ServerService_WaitResultServer) error {
 	ctx := stream.Context()
-	ch, err := s.g.WaitResult(ctx)
+	pc := pbConverter{}
+
+	ids, err := pc.WaitResultRequestToProgramIDs(r)
+	if err != nil {
+		return err
+	}
+	ch, err := s.g.WaitResult(ctx, ids)
 	if err != nil {
 		return err
 	}
 
-	pc := pbConverter{}
 	for result := range ch {
-		err := stream.Send(pc.WaitResultResponseFromModel(result))
+		pb, err := pc.WaitResultResponseFromModel(result)
+		if err != nil {
+			return err
+		}
+		err = stream.Send(pb)
 		if err != nil {
 			return err
 		}

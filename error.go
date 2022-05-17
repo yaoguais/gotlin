@@ -22,6 +22,8 @@ var (
 	ErrConnect          = newError("Connect")
 	ErrRequest          = newError("Request")
 	ErrExitUnexpectedly = newError("Exit unexpectedly")
+	ErrConverter        = newError("Converter")
+	ErrNilPointer       = newError("NilPointer")
 )
 
 // Service Errors
@@ -44,7 +46,7 @@ var (
 
 // Model Errors
 var (
-	ErrProcessorType         = newError("Proccess is invalid")
+	ErrProcessorType         = newError("Processor type is invalid")
 	ErrProgramState          = newError("Program state is invalid")
 	ErrProgramCode           = newError("Program code is invalid")
 	ErrProgramResult         = newError("Program result is invalid")

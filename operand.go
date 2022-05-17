@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/spf13/cast"
+	"github.com/vmihailenco/msgpack/v5"
 	"gorm.io/driver/clickhouse"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
@@ -47,12 +48,16 @@ func (v *Operand) ImmediateValue() (interface{}, bool) {
 }
 
 func (v *Operand) UnmarshalJSON(data []byte) (err error) {
+	return v.unmarshalJSON(data, json.Unmarshal)
+}
+
+func (v *Operand) unmarshalJSON(data []byte, f Unmarshal) (err error) {
 	root := struct {
 		Type  string
 		Value json.RawMessage
 	}{}
 
-	err = json.Unmarshal(data, &root)
+	err = f(data, &root)
 	if err != nil {
 		return
 	}
@@ -65,13 +70,50 @@ func (v *Operand) UnmarshalJSON(data []byte) (err error) {
 
 	switch root.Type {
 	case emptyInput.Type():
-		err = json.Unmarshal(root.Value, &emptyInput)
+		err = f(root.Value, &emptyInput)
 		*v = Operand{Type: root.Type, Value: emptyInput}
 	case immediate.Type():
-		err = json.Unmarshal(root.Value, &immediate)
+		err = f(root.Value, &immediate)
 		*v = Operand{Type: root.Type, Value: immediate}
 	case databaseQuery.Type():
-		err = json.Unmarshal(root.Value, &databaseQuery)
+		err = f(root.Value, &databaseQuery)
+		*v = Operand{Type: root.Type, Value: databaseQuery}
+	default:
+		return newErrorf("Unmarshal Operand for type %s", root.Type)
+	}
+	return
+}
+
+func (v *Operand) UnmarshalMsgpack(data []byte) error {
+	return v.unmarshalMsgpack(data, msgpack.Unmarshal)
+}
+
+func (v *Operand) unmarshalMsgpack(data []byte, f Unmarshal) (err error) {
+	root := struct {
+		Type  string
+		Value msgpack.RawMessage
+	}{}
+
+	err = f(data, &root)
+	if err != nil {
+		return
+	}
+
+	var (
+		emptyInput    = EmptyInput{}
+		immediate     = Immediate{}
+		databaseQuery = DatabaseQuery{}
+	)
+
+	switch root.Type {
+	case emptyInput.Type():
+		err = f(root.Value, &emptyInput)
+		*v = Operand{Type: root.Type, Value: emptyInput}
+	case immediate.Type():
+		err = f(root.Value, &immediate)
+		*v = Operand{Type: root.Type, Value: immediate}
+	case databaseQuery.Type():
+		err = f(root.Value, &databaseQuery)
 		*v = Operand{Type: root.Type, Value: databaseQuery}
 	default:
 		return newErrorf("Unmarshal Operand for type %s", root.Type)

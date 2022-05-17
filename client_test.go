@@ -2,7 +2,6 @@ package gotlin
 
 import (
 	"context"
-	"encoding/json"
 	"testing"
 	"time"
 
@@ -37,9 +36,8 @@ func TestGotlin_StartComputeNode(t *testing.T) {
 	require.Nil(t, err)
 
 	option := RegisterExecutorOption{
-		ID:     NewExecutorID(),
-		Host:   "127.0.0.1:0",
-		Labels: NewLabels().Add(NewDefaultOpCodeLabel()),
+		ID:   NewExecutorID(),
+		Host: "127.0.0.1:0",
 	}
 	err = c.RegisterExecutor(ctx, option)
 	require.Nil(t, err)
@@ -92,19 +90,15 @@ func TestGotlin_ClientSubmitProgramToExecute(t *testing.T) {
 	err = c.RunProgram(ctx, RunProgramOption{SchedulerID: s, Program: p, Instructions: ins})
 	require.Nil(t, err)
 
-	ch, err := c.WaitResult(context.Background())
+	ch, err := c.WaitResult(context.Background(), WaitResultOption{IDs: []ProgramID{p.ID}})
 	require.Nil(t, err)
-
-	result := ProgramResult{}
-	select {
-	case <-time.After(time.Second):
-	case result = <-ch:
-	}
+	result := <-ch
 
 	require.Nil(t, result.Error)
-	value := 0
-	_ = json.Unmarshal(result.Result.([]byte), &value)
-	assertProgramExecuteResult(t, 12, value)
+	value := float64(0)
+	err = unmarshal(result.Result.([]byte), &value)
+	require.Nil(t, err)
+	assertProgramExecuteResult(t, 12, int(value))
 }
 
 func TestGotlin_ComputeNode_ExecuteConcurrently(t *testing.T) {
@@ -134,9 +128,8 @@ func TestGotlin_ComputeNode_ExecuteConcurrently(t *testing.T) {
 	require.Nil(t, err)
 
 	option := RegisterExecutorOption{
-		ID:     NewExecutorID(),
-		Host:   "127.0.0.1:0",
-		Labels: NewLabels().Add(NewDefaultOpCodeLabel()),
+		ID:   NewExecutorID(),
+		Host: "127.0.0.1:0",
 	}
 	err = c.RegisterExecutor(ctx, option)
 	require.Nil(t, err)

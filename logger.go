@@ -2,7 +2,6 @@ package gotlin
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/sirupsen/logrus"
 )
@@ -10,7 +9,7 @@ import (
 var stdLogger = logrus.StandardLogger()
 
 func init() {
-	level, err := logrus.ParseLevel(os.Getenv("LOG_LEVEL"))
+	level, err := logrus.ParseLevel(getenv("LOG_LEVEL"))
 	if err == nil {
 		stdLogger.SetLevel(level)
 	}

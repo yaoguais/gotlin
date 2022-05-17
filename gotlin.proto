@@ -85,7 +85,7 @@ message RunProgramResponse {
 }
 
 message WaitResultRequest {
-
+    repeated string ids = 1;
 }
 
 message WaitResultResponse {

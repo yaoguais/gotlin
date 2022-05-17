@@ -2,6 +2,7 @@ package gotlin
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"time"
 
@@ -61,6 +62,17 @@ func (m *InstructionSet) GetExecutorHandler(op OpCode) (ExecutorHandler, error) 
 		return v.Executor, nil
 	}
 	return nil, ErrExecutorNotFound
+}
+
+func (m *InstructionSet) OpCodeLabel() Label {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	opcodes := []string{}
+	for opcode := range m.handlers {
+		opcodes = append(opcodes, string(opcode))
+	}
+	return NewLabel(OpCodeLabelKey, strings.Join(opcodes, ","))
 }
 
 func (m *InstructionSet) ClearDefaults() {
@@ -168,7 +180,7 @@ func ExecuteArithmeticInstruction(ctx context.Context, op Instruction, args ...I
 			}
 			result /= x
 		default:
-			return InstructionResult{}, newErrorf("not supported math operator %T", op)
+			return InstructionResult{}, newErrorf("not supported math operator %s", op.OpCode)
 		}
 	}
 
@@ -214,15 +226,24 @@ func getCollectionValues(list []interface{}) (collectionValues, bool) {
 	strings := [][]string{}
 	ints := [][]int{}
 	floats := [][]float64{}
-
 	for _, v := range list {
 		switch v2 := v.(type) {
 		case []string:
 			strings = append(strings, v2)
-		case []int:
-			ints = append(ints, v2)
+		case []int, []int64, []int32, []int16, []int8, []uint, []uint64, []uint32, []uint16, []uint8:
+			v3, err := cast.ToIntSliceE(v2)
+			if err != nil {
+				return collectionValues{}, false
+			}
+			ints = append(ints, v3)
 		case []float64:
 			floats = append(floats, v2)
+		case []float32:
+			v3 := make([]float64, 0, len(v2))
+			for _, v4 := range v2 {
+				v3 = append(v3, float64(v4))
+			}
+			floats = append(floats, v3)
 		case []interface{}:
 			if len(v2) == 0 {
 				return collectionValues{}, false
@@ -234,16 +255,20 @@ func getCollectionValues(list []interface{}) (collectionValues, bool) {
 					t = append(t, v3.(string))
 				}
 				strings = append(strings, t)
-			case int:
+			case int, int64, int32, int16, int8, uint, uint64, uint32, uint16, uint8:
 				t := make([]int, 0, len(v2))
 				for _, v3 := range v2 {
-					t = append(t, v3.(int))
+					v4, err := cast.ToIntE(v3)
+					if err != nil {
+						return collectionValues{}, false
+					}
+					t = append(t, v4)
 				}
 				ints = append(ints, t)
-			case float64:
+			case float32, float64:
 				t := make([]float64, 0, len(v2))
 				for _, v3 := range v2 {
-					t = append(t, v3.(float64))
+					t = append(t, cast.ToFloat64(v3))
 				}
 				floats = append(floats, t)
 			}

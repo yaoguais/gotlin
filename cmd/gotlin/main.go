@@ -183,9 +183,8 @@ func compute(c *cli.Context) error {
 	defer cancel()
 
 	err = g.RegisterExecutor(ctx, RegisterExecutorOption{
-		ID:     executorID,
-		Host:   EmptyHost,
-		Labels: NewLabels().Add(NewDefaultOpCodeLabel()),
+		ID:   executorID,
+		Host: EmptyHost,
 	})
 	if err != nil {
 		return err
@@ -245,7 +244,7 @@ func submit(c *cli.Context) error {
 		return err
 	}
 
-	ch, err := g.WaitResult(ctx)
+	ch, err := g.WaitResult(ctx, WaitResultOption{IDs: []ProgramID{p.ID}})
 	if err != nil {
 		return err
 	}

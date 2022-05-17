@@ -11,10 +11,13 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/pkg/errors"
 	"github.com/pkg/profile"
+	"github.com/spf13/cast"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -115,7 +118,7 @@ func getTestProgram2(t require.TestingT) (Program, []Instructioner) {
 	return p, ins
 }
 
-// Perform an arithmetic calculation "( 2 + 1 ) * 4 / 1", the expected result is 12
+// Perform an arithmetic calculation "( 2b + 1b ) * 4 / 1b", the expected result is 12
 func getTestProgram3(t require.TestingT) (Program, []Instructioner) {
 	b := int(100 * time.Millisecond)
 	i1 := NewInstruction().ChangeToWait(2 * b)
@@ -155,6 +158,68 @@ func getTestProgram3(t require.TestingT) (Program, []Instructioner) {
 	require.True(t, ok)
 
 	return p, ins
+}
+
+// Perform an arithmetic calculation "( 1 + 2 ) * 4", the expected result is 12
+func getTestProgram4(t require.TestingT) (Program, []Instructioner, *InstructionSet) {
+	const OpCodeAdd2 OpCode = "ADD2"
+
+	i1 := NewInstruction().ChangeImmediateValue(1)
+	i2 := NewInstruction().ChangeImmediateValue(2)
+	i3 := NewInstruction().ChangeToArithmetic(OpCodeAdd2)
+	i4 := NewInstruction().ChangeImmediateValue(4)
+	i5 := NewInstruction().ChangeToArithmetic(OpCodeMul)
+
+	ins := []Instructioner{i1, i2, i3, i4, i5}
+
+	p := NewProgram()
+	for _, in := range ins {
+		p = p.AddInstruction(in.Instruction().ID)
+	}
+
+	d := NewInstructionDAG()
+
+	ids := []InstructionID{}
+	for _, v := range ins {
+		ids = append(ids, v.Instruction().ID)
+	}
+	err := d.Add(ids...)
+	require.Nil(t, err)
+
+	err = d.AttachChildren(i3.ID, i1.ID, i2.ID)
+	require.Nil(t, err)
+	err = d.AttachChildren(i5.ID, i3.ID, i4.ID)
+	require.Nil(t, err)
+
+	p = p.ChangeProcessor(NewDAGProcessorContext(d, 8))
+
+	p, ok := p.ChangeState(StateReady)
+	require.True(t, ok)
+
+	calls := int64(0)
+
+	is := NewInstructionSet()
+	handler := InstructionHandler{
+		OpCode: OpCodeAdd2,
+		Executor: func(ctx context.Context, op Instruction,
+			args ...Instruction) (InstructionResult, error) {
+			i := atomic.AddInt64(&calls, 1)
+			if i == 1 {
+				err := errors.Errorf("OpCode %s will return an error directly when it is executed for the first time", OpCodeAdd2)
+				return InstructionResult{}, err
+			}
+
+			result := float64(0)
+			for _, in := range args {
+				tmp, _ := in.InstructionResult(ctx)
+				result += cast.ToFloat64(tmp)
+			}
+			return NewRegisterResult(result), nil
+		},
+	}
+	is.Register(handler)
+
+	return p, ins, is
 }
 
 func assertProgramExecuteResult(t require.TestingT, excepted interface{}, actual interface{}) {
@@ -455,17 +520,10 @@ func testGotlinWaitResult(t *testing.T, g *Gotlin) {
 	err = g.RunProgram(ctx, s, p, ins)
 	require.Nil(t, err)
 
-	ctx, cancel := context.WithTimeout(ctx, time.Second)
-	defer cancel()
-	ch, err := g.WaitResult(ctx)
+	ch, err := g.WaitResult(ctx, []ProgramID{p.ID})
 	require.Nil(t, err)
 
-	result := ProgramResult{}
-	select {
-	case <-time.After(time.Second):
-	case result = <-ch:
-	}
-
+	result := <-ch
 	require.Nil(t, result.Error)
 	assertProgramExecuteResult(t, 12, result.Result)
 }
@@ -475,58 +533,31 @@ func TestGotlin_RerunProgram(t *testing.T) {
 
 	db := getTestDB()
 
-	g, err := NewGotlin(WithDatabase(db), WithServerExecutor(true), WithEnableServer(false))
-	require.Nil(t, err)
+	p, ins, is := getTestProgram4(t)
 
-	p, ins := getTestProgram(t)
+	g, err := NewGotlin(WithDatabase(db), WithServerExecutor(true), WithEnableServer(false), WithInstructionSet(is))
+	require.Nil(t, err)
 
 	s, err := g.RequestScheduler(ctx, NewSchedulerOption())
 	require.Nil(t, err)
 
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
 	err = g.RunProgram(ctx, s, p, ins)
 	require.Nil(t, err)
 
-	go func() {
-		for {
-			id := ins[0].Instruction().ID
-			in, err := g.InstructionRepository.Find(ctx, id)
-			require.Nil(t, err)
-			if in.IsState(StateExit) {
-				cancel()
-				return
-			}
-		}
-	}()
-
-	ch, err := g.WaitResult(context.Background())
+	ch, err := g.WaitResult(context.Background(), []ProgramID{p.ID})
 	require.Nil(t, err)
-
-	result := ProgramResult{}
-	select {
-	case <-time.After(time.Second):
-	case result = <-ch:
-	}
-
+	result := <-ch
 	require.NotNil(t, result.Error)
+	require.Contains(t, result.Error.Error(), "ADD2")
 
 	ctx = context.Background()
 	err = g.RunProgram(ctx, s, p, ins)
 	require.Nil(t, err)
 
-	ctx, cancel = context.WithTimeout(ctx, time.Second)
-	defer cancel()
-	ch, err = g.WaitResult(ctx)
+	ch, err = g.WaitResult(ctx, []ProgramID{p.ID})
 	require.Nil(t, err)
 
-	result = ProgramResult{}
-	select {
-	case <-time.After(time.Second):
-	case result = <-ch:
-	}
-
+	result = <-ch
 	require.Nil(t, result.Error)
 	assertProgramExecuteResult(t, 12, result.Result)
 }

@@ -38,11 +38,11 @@ func NewSchedulerPool(ep *ExecutorPool, sr SchedulerRepository, pr ProgramReposi
 }
 
 type SchedulerOption struct {
-	Dummy string
+	dummy string
 }
 
 func NewSchedulerOption() SchedulerOption {
-	return SchedulerOption{Dummy: "dummy"}
+	return SchedulerOption{dummy: "dummy"}
 }
 
 func (sp *SchedulerPool) RequestScheduler(ctx context.Context, option SchedulerOption) (SchedulerID, error) {
@@ -142,10 +142,10 @@ type ProgramResult struct {
 	Error  error
 }
 
-func (sp *SchedulerPool) WaitResult(ctx context.Context) (chan ProgramResult, error) {
+func (sp *SchedulerPool) WaitResult(ctx context.Context, ids []ProgramID) (chan ProgramResult, error) {
 	sp.preWaiting()
 
-	sub := newSubProgramResult()
+	sub := newSubProgramResult(ids)
 	sp.mu.Lock()
 	i := sp.i
 	sp.i++
@@ -410,13 +410,15 @@ func (sp *SchedulerPool) queryResult(ctx context.Context, p Program) (interface{
 }
 
 type subProgramResult struct {
+	ids    []ProgramID
 	ch     chan ProgramResult
 	mu     sync.Mutex
 	closed bool
 }
 
-func newSubProgramResult() *subProgramResult {
+func newSubProgramResult(ids []ProgramID) *subProgramResult {
 	return &subProgramResult{
+		ids:    ids,
 		ch:     make(chan ProgramResult, 1024),
 		mu:     sync.Mutex{},
 		closed: false,
@@ -424,7 +426,16 @@ func newSubProgramResult() *subProgramResult {
 }
 
 func (s *subProgramResult) Send(v ProgramResult) {
-	go s.send(v) // TODO fix max gotoutines limits
+	found := false
+	for _, id := range s.ids {
+		if id.IsEqual(v.ID) {
+			found = true
+			break
+		}
+	}
+	if found {
+		go s.send(v) // TODO fix max gotoutines limits
+	}
 }
 
 func (s *subProgramResult) send(v ProgramResult) {

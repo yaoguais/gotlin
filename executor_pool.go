@@ -16,10 +16,10 @@ type ExecutorPool struct {
 	mu        sync.RWMutex
 }
 
-func NewExecutorPool(er ExecutorRepository) *ExecutorPool {
+func NewExecutorPool(er ExecutorRepository, is *InstructionSet) *ExecutorPool {
 	return &ExecutorPool{
 		ExecutorRepository: er,
-		is:                 NewInstructionSet(),
+		is:                 is,
 		executors:          make(map[ExecutorID]bool),
 		ids:                []ExecutorID{},
 		hs:                 make(map[Host]ExecutorID),
@@ -30,7 +30,7 @@ func NewExecutorPool(er ExecutorRepository) *ExecutorPool {
 
 func (m *ExecutorPool) AddServerExecutor() error {
 	executor := NewExecutor()
-	executor = executor.AddLabel(NewDefaultOpCodeLabel())
+	executor = executor.AddLabel(m.is.OpCodeLabel())
 	executor, _ = executor.ChangeState(StateRunning)
 	err := m.Add(context.Background(), executor)
 	return wrapError(err, "Add server-side Executor")
@@ -65,7 +65,7 @@ func (m *ExecutorPool) Remove(ctx context.Context, id ExecutorID, removeErr erro
 	found := false
 	ids := []ExecutorID{}
 	for _, v := range m.ids {
-		if v == id {
+		if v.IsEqual(id) {
 			found = true
 		} else {
 			ids = append(ids, v)
@@ -201,12 +201,22 @@ func (e *executor) Execute(ctx context.Context, op Instruction, args ...Instruct
 
 	pc := pbConverter{}
 
+	opPb, err := pc.InstructionerToPb(op)
+	if err != nil {
+		return InstructionResult{}, err
+	}
+
+	argsPb, err := pc.InstructionersToPb(ins)
+	if err != nil {
+		return InstructionResult{}, err
+	}
+
 	r := &ExecuteStream{
 		Id:      id.String(),
 		Type:    ExecuteStream_Execute,
 		Timeout: timeout,
-		Op:      pc.InstructionerToPb(op),
-		Args:    pc.InstructionersToPb(ins),
+		Op:      opPb,
+		Args:    argsPb,
 	}
 
 	logger.Debugf("Send an instruction to the compute node, %s", r)
@@ -223,7 +233,7 @@ func (e *executor) Execute(ctx context.Context, op Instruction, args ...Instruct
 		sub.Close()
 	}()
 
-	err := e.stream.Send(r)
+	err = e.stream.Send(r)
 	if err != nil {
 		return InstructionResult{}, newError("Send command to client")
 	}
@@ -267,7 +277,11 @@ func (e *executor) waitResult() (id string, ir InstructionResult, err error) {
 	logger.Debugf("Received the result of an instruction, %s", r)
 
 	pc := pbConverter{}
-	in := pc.InstructionToModel(r.Result).Instruction()
+	iner, err := pc.InstructionToModel(r.Result)
+	if err != nil {
+		return r.Id, InstructionResult{}, err
+	}
+	in := iner.Instruction()
 
 	return r.Id, in.Result, nil
 }

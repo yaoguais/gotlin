@@ -1,10 +1,16 @@
 # Gotlin
 
+[![Build Status](https://github.com/yaoguais/gotlin/actions/workflows/ci.yml/badge.svg)](https://github.com/yaoguais/gotlin/actions?query=branch%3Amain)
+[![codecov](https://codecov.io/gh/yaoguais/gotlin/branch/main/graph/badge.svg?token=X0760OXYAW)](https://codecov.io/gh/yaoguais/gotlin)
+[![Go Report Card](https://goreportcard.com/badge/github.com/yaoguais/gotlin)](https://goreportcard.com/report/github.com/yaoguais/gotlin)
+[![GoDoc](https://pkg.go.dev/badge/github.com/yaoguais/gotlin?status.svg)](https://pkg.go.dev/github.com/yaoguais/gotlin?tab=doc)
+
+
 Gotlin is a distributed computing framework, which is similar to Apache MapReduce. It is a lightweight and customizable computing framework specially designed for Golang.
 It is divided into service nodes, computing nodes and clients. The client submits tasks to the service nodes, and the tasks are divided into multiple instructions and form a directed acyclic graph according to the dependencies of the instructions. The service node will schedule the instructions to the computing node, and when all the instructions are calculated, the service node will return the result of the task to the client. At this point, a task ends.
 The gotlin framework has a rich set of built-in instructions, including basic arithmetic instructions, logical instructions, data instructions [immediate values, database input and output], collection instructions [intersection, union, difference], table instructions [join, union, filter, grouping, sorting]. You can also customize your own instruction, register the computing node that can process the instruction to the service node, and the instruction can participate in the calculation. Hope you enjoy it.
 
-*\*Important: The project is still in development, do not use in production environment.*
+*\*Important: The core functions of gotlin1.0rc1 have been completed. After confirming the function signature and improving the unit test coverage, the stable version will be launched.*
 
 ## Installation
 
@@ -84,7 +90,7 @@ func main() {
 	rp := RunProgramOption{SchedulerID: s, Program: p, Instructions: ins}
 	c.RunProgram(context.Background(), rp)
 
-	ch, _ := c.WaitResult(context.Background())
+	ch, _ := c.WaitResult(context.Background(), WaitResultOption{IDs: []ProgramID{p.ID}})
 	wr := <-ch
 	fmt.Printf("Program: %s, result %v\n", wr.ID, wr.Result)
 }
@@ -132,17 +138,17 @@ func main() {
 	d2 := NewDatabaseQuery(driver, dsn, query2, converters)
 	i2 := NewInstruction().ChangeDatabaseQuery(d2)
 	i3 := NewInstruction().ChangeToArithmetic(OpCodeIntersect)
-	ins := []Instruction{i1, i2, i3}
+	ins := []Instructioner{i1, i2, i3}
 
 	p := NewProgram()
 	for _, in := range ins {
-		p = p.AddInstruction(in.ID)
+		p = p.AddInstruction(in.Instruction().ID)
 	}
 
 	d := NewInstructionDAG()
 	ids := []InstructionID{}
 	for _, v := range ins {
-		ids = append(ids, v.ID)
+		ids = append(ids, v.Instruction().ID)
 	}
 	d.Add(ids...)
 	d.AttachChildren(i3.ID, i1.ID, i2.ID)
@@ -151,11 +157,11 @@ func main() {
 	p = p.ChangeProcessor(NewDAGProcessorContext(d, core))
 
 	c, _ := NewClient()
-	res, _ := c.RequestScheduler(context.Background(), RequestSchedulerOption{})
-	rp := RunProgramOption{SchedulerID: res.SchedulerID, Program: p, Instructions: ins}
+	s, _ := c.RequestScheduler(context.Background(), RequestSchedulerOption{})
+	rp := RunProgramOption{SchedulerID: s, Program: p, Instructions: ins}
 	c.RunProgram(context.Background(), rp)
 
-	ch, _ := c.WaitResult(context.Background())
+	ch, _ := c.WaitResult(context.Background(), WaitResultOption{IDs: []ProgramID{p.ID}})
 	wr := <-ch
 	fmt.Printf("Program: %s, result %v\n", wr.ID, wr.Result)
 }

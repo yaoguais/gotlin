@@ -96,14 +96,21 @@ type UnregisterExecutorOption struct {
 }
 
 func (c *Client) RegisterExecutor(ctx context.Context, r RegisterExecutorOption) error {
-	req := pbConverter{}.RegisterExecutorOptionToPb(r)
-	_, err := c.c.RegisterExecutor(ctx, req, r.CallOptions.GRPCOption()...)
+	r.Labels = r.Labels.Add(c.InstructionSet.OpCodeLabel())
+	req, err := pbConverter{}.RegisterExecutorOptionToPb(r)
+	if err != nil {
+		return c.error(ErrConverter, err, "RegisterExecutorOption")
+	}
+	_, err = c.c.RegisterExecutor(ctx, req, r.CallOptions.GRPCOption()...)
 	return c.error(ErrRequest, err, "Register Executor")
 }
 
 func (c *Client) UnregisterExecutor(ctx context.Context, r UnregisterExecutorOption) error {
-	req := pbConverter{}.UnregisterExecutorOptionToPb(r)
-	_, err := c.c.UnregisterExecutor(ctx, req, r.CallOptions.GRPCOption()...)
+	req, err := pbConverter{}.UnregisterExecutorOptionToPb(r)
+	if err != nil {
+		return c.error(ErrConverter, err, "UnregisterExecutorOption")
+	}
+	_, err = c.c.UnregisterExecutor(ctx, req, r.CallOptions.GRPCOption()...)
 	return c.error(ErrRequest, err, "Unregister Executor")
 }
 
@@ -203,30 +210,26 @@ func (c *Client) executeAsync(stream ServerService_ExecuteClient,
 
 func (c *Client) sendResult(stream ServerService_ExecuteClient,
 	rr *ExecuteStream, result InstructionResult, handleErr error, logger Logger) error {
-
+	var error string
 	if handleErr != nil {
-		r := &ExecuteStream{
-			Id:    rr.Id,
-			Type:  ExecuteStream_Result,
-			Error: handleErr.Error(),
-		}
-		logger.Debugf("Send the result of an instruction, %s", r)
-		err := stream.Send(r)
-		return c.error(ErrRequest, err, "Client send Instruction execute result")
+		error = handleErr.Error()
+		result = NewEmptyInstructionResult()
 	}
 
-	data, err := json.Marshal(result)
+	data, err := marshal(result)
 	if err != nil {
 		return c.error(ErrRequest, err, "Marshal remote result")
 	}
 
 	r := &ExecuteStream{
-		Id:   rr.Id,
-		Type: ExecuteStream_Result,
+		Id:    rr.Id,
+		Type:  ExecuteStream_Result,
+		Error: error,
 		Result: &InstructionPb{
-			Id:     rr.Op.Id,
-			Opcode: rr.Op.Opcode,
-			Result: data,
+			Id:      rr.Op.Id,
+			Opcode:  rr.Op.Opcode,
+			Operand: rr.Op.Operand,
+			Result:  data,
 		},
 	}
 	logger.Debugf("Send the result of an instruction, %s", r)
@@ -240,7 +243,10 @@ type RequestSchedulerOption struct {
 }
 
 func (c *Client) RequestScheduler(ctx context.Context, r RequestSchedulerOption) (SchedulerID, error) {
-	req := pbConverter{}.RequestSchedulerOptionToPb(r)
+	req, err := pbConverter{}.RequestSchedulerOptionToPb(r)
+	if err != nil {
+		return SchedulerID{}, c.error(ErrConverter, err, "RequestSchedulerOption")
+	}
 	resp, err := c.c.RequestScheduler(ctx, req, r.CallOptions.GRPCOption()...)
 	if err != nil {
 		return SchedulerID{}, err
@@ -256,13 +262,28 @@ type RunProgramOption struct {
 }
 
 func (c *Client) RunProgram(ctx context.Context, r RunProgramOption) error {
-	req := pbConverter{}.RunProgramOptionToPb(r)
-	_, err := c.c.RunProgram(ctx, req, r.CallOptions.GRPCOption()...)
+	req, err := pbConverter{}.RunProgramOptionToPb(r)
+	if err != nil {
+		return c.error(ErrConverter, err, "RunProgramOption")
+	}
+	_, err = c.c.RunProgram(ctx, req, r.CallOptions.GRPCOption()...)
 	return err
 }
 
-func (c *Client) WaitResult(ctx context.Context) (chan ProgramResult, error) {
-	stream, err := c.c.WaitResult(ctx, &WaitResultRequest{})
+type WaitResultOption struct {
+	IDs         []ProgramID
+	CallOptions ClientCallOptions
+}
+
+func (c *Client) WaitResult(ctx context.Context, r WaitResultOption) (chan ProgramResult, error) {
+	pc := pbConverter{}
+
+	req, err := pc.WaitResultOptionToPb(r)
+	if err != nil {
+		return nil, c.error(ErrConverter, err, "WaitResultOption")
+	}
+
+	stream, err := c.c.WaitResult(ctx, req, r.CallOptions.GRPCOption()...)
 	if err != nil {
 		return nil, err
 	}
@@ -271,8 +292,6 @@ func (c *Client) WaitResult(ctx context.Context) (chan ProgramResult, error) {
 
 	go func() {
 		defer close(ch)
-
-		pc := pbConverter{}
 
 		for {
 			select {
@@ -292,7 +311,12 @@ func (c *Client) WaitResult(ctx context.Context) (chan ProgramResult, error) {
 				ch <- ProgramResult{Error: c.error(ErrExitUnexpectedly, err, "Program exit")}
 				return
 			}
-			ch <- pc.WaitResultResponseToModel(m)
+			result, err := pc.WaitResultResponseToModel(m)
+			if err != nil {
+				ch <- ProgramResult{Error: c.error(ErrExitUnexpectedly, err, "Convert WaitResultResponse")}
+				return
+			}
+			ch <- result
 		}
 	}()
 
@@ -311,179 +335,270 @@ func (c *Client) Shutdown() error {
 type pbConverter struct {
 }
 
-func (pbConverter) RegisterExecutorOptionToPb(r RegisterExecutorOption) *RegisterExecutorRequest {
-	req := &RegisterExecutorRequest{
-		Id: r.ID.String(),
-	}
+func (pbConverter) RegisterExecutorOptionToPb(r RegisterExecutorOption) (*RegisterExecutorRequest, error) {
+	req := &RegisterExecutorRequest{Id: r.ID.String()}
 	for _, v := range r.Labels {
-		req.Labels = append(req.Labels, &RegisterExecutorRequest_Label{Key: v.Key, Value: v.Value})
+		label := &RegisterExecutorRequest_Label{Key: v.Key, Value: v.Value}
+		req.Labels = append(req.Labels, label)
 	}
-	return req
+	return req, nil
 }
 
-func (pbConverter) UnregisterExecutorOptionToPb(r UnregisterExecutorOption) *UnregisterExecutorRequest {
+func (pbConverter) UnregisterExecutorOptionToPb(r UnregisterExecutorOption) (*UnregisterExecutorRequest, error) {
 	var error string
 	if r.Error != nil {
 		error = r.Error.Error()
 	}
-	req := &UnregisterExecutorRequest{
-		Id:    r.ID.String(),
-		Error: error,
-	}
-	return req
+	req := &UnregisterExecutorRequest{Id: r.ID.String(), Error: error}
+	return req, nil
 }
 
-func (pbConverter) RequestSchedulerOptionToPb(r RequestSchedulerOption) *RequestSchedulerRequest {
-	req := &RequestSchedulerRequest{
-		Dummy: r.Dummy,
-	}
-	return req
+func (pbConverter) RequestSchedulerOptionToPb(r RequestSchedulerOption) (*RequestSchedulerRequest, error) {
+	req := &RequestSchedulerRequest{Dummy: r.dummy}
+	return req, nil
 }
 
-func (pbConverter) RequestSchedulerRequestToModel(r *RequestSchedulerRequest) SchedulerOption {
-	return SchedulerOption{
-		Dummy: r.Dummy,
+func (pbConverter) RequestSchedulerRequestToModel(r *RequestSchedulerRequest) (SchedulerOption, error) {
+	if r == nil {
+		return SchedulerOption{}, ErrNilPointer
 	}
+	return SchedulerOption{dummy: r.Dummy}, nil
 }
 
-func (pbConverter) ProgramToPb(r Program) *ProgramPb {
-	code, _ := json.Marshal(r.Code)
-	processor, _ := json.Marshal(r.Processor)
-	return &ProgramPb{
+func (pbConverter) ProgramToPb(r Program) (*ProgramPb, error) {
+	code, err := json.Marshal(r.Code)
+	if err != nil {
+		return nil, err
+	}
+	processor, err := json.Marshal(r.Processor)
+	if err != nil {
+		return nil, err
+	}
+	p := &ProgramPb{
 		Id:        r.ID.String(),
 		Code:      code,
 		Processor: processor,
 	}
+	return p, nil
 }
 
-func (pbConverter) ProgramToModel(r *ProgramPb) Program {
-	p := NewProgram()
+func (pbConverter) ProgramToModel(r *ProgramPb) (p Program, err error) {
+	if r == nil {
+		return Program{}, ErrNilPointer
+	}
 
-	id, _ := ParseProgramID(r.Id)
+	p = NewProgram()
+
+	id, err := ParseProgramID(r.Id)
+	if err != nil {
+		return
+	}
 	p.ID = id
 
 	code := ProgramCode{}
-	_ = json.Unmarshal(r.Code, &code)
+	err = json.Unmarshal(r.Code, &code)
+	if err != nil {
+		return
+	}
 	p.Code = code
 
 	processor := ProcessorContext{}
-	_ = json.Unmarshal(r.Processor, &processor)
+	err = json.Unmarshal(r.Processor, &processor)
+	if err != nil {
+		return
+	}
 	p.Processor = processor
 
-	p, _ = p.ChangeState(StateReady)
-	return p
+	p, ok := p.ChangeState(StateReady)
+	if !ok {
+		return Program{}, wrapError(ErrProgramState, "Not ready")
+	}
+	return p, nil
 }
 
-func (pbConverter) InstructionerToPb(r Instructioner) *InstructionPb {
+func (pbConverter) InstructionerToPb(r Instructioner) (*InstructionPb, error) {
 	in := r.Instruction()
 	_, isRef := r.(InstructionRefer)
-	operand, _ := json.Marshal(in.Operand)
-	result, _ := json.Marshal(in.Result)
+
+	operand, err := marshal(in.Operand)
+	if err != nil {
+		return nil, err
+	}
+
+	result, err := marshal(in.Result)
+	if err != nil {
+		return nil, err
+	}
+
 	req := &InstructionPb{
 		Id:      in.ID.String(),
 		Opcode:  in.OpCode.String(),
 		Operand: operand,
 		Result:  result,
 	}
+
 	if isRef {
-		id2, _ := json.Marshal(in.ID)
+		id2, err := json.Marshal(in.ID)
+		if err != nil {
+			return nil, err
+		}
 		req.Id2 = string(id2)
 	}
-	return req
+
+	return req, nil
 }
 
-func (pbConverter) InstructionToModel(r *InstructionPb) Instructioner {
-	id, _ := ParseInstructionID(r.Id)
+func (pbConverter) InstructionToModel(r *InstructionPb) (Instructioner, error) {
+	if r == nil {
+		return nil, ErrNilPointer
+	}
+
+	id, err := ParseInstructionID(r.Id)
+	if err != nil {
+		return nil, err
+	}
 
 	in := NewInstruction()
 	in.ID = id
 	in.OpCode = OpCode(r.Opcode)
 
 	operand := Operand{}
-	_ = json.Unmarshal(r.Operand, &operand)
+	err = unmarshal(r.Operand, &operand)
+	if err != nil {
+		return nil, err
+	}
 	in.Operand = operand
 
 	result := InstructionResult{}
-	_ = json.Unmarshal(r.Result, &result)
+	err = unmarshal(r.Result, &result)
+	if err != nil {
+		return nil, err
+	}
 	in.Result = result
 
 	if r.Id2 == "" {
-		return in
+		return in, nil
 	}
 
 	var id2 InstructionID
-	_ = json.Unmarshal([]byte(r.Id2), &id2)
+	err = json.Unmarshal([]byte(r.Id2), &id2)
+	if err != nil {
+		return nil, err
+	}
 	in.ID = id2
-	return in
+	return in, nil
 
 }
 
-func (c pbConverter) InstructionersToPb(rs []Instructioner) []*InstructionPb {
+func (c pbConverter) InstructionersToPb(rs []Instructioner) ([]*InstructionPb, error) {
 	req := make([]*InstructionPb, 0, len(rs))
 	for _, r := range rs {
-		req = append(req, c.InstructionerToPb(r))
+		in, err := c.InstructionerToPb(r)
+		if err != nil {
+			return nil, err
+		}
+		req = append(req, in)
 	}
-	return req
+	return req, nil
 }
 
-func (c pbConverter) InstructionToModels(rs []*InstructionPb) []Instructioner {
+func (c pbConverter) InstructionToModels(rs []*InstructionPb) ([]Instructioner, error) {
 	ms := make([]Instructioner, 0, len(rs))
 	for _, r := range rs {
-		ms = append(ms, c.InstructionToModel(r))
+		if r == nil {
+			return nil, ErrNilPointer
+		}
+		m, err := c.InstructionToModel(r)
+		if err != nil {
+			return nil, err
+		}
+		ms = append(ms, m)
 	}
-	return ms
+	return ms, nil
 }
 
-func (c pbConverter) RunProgramOptionToPb(r RunProgramOption) *RunProgramRequest {
+func (c pbConverter) RunProgramOptionToPb(r RunProgramOption) (*RunProgramRequest, error) {
+	p, err := c.ProgramToPb(r.Program)
+	if err != nil {
+		return nil, err
+	}
+	ins, err := c.InstructionersToPb(r.Instructions)
+	if err != nil {
+		return nil, err
+	}
 	req := &RunProgramRequest{
 		SchedulerId:  r.SchedulerID.String(),
-		Program:      c.ProgramToPb(r.Program),
-		Instructions: c.InstructionersToPb(r.Instructions),
+		Program:      p,
+		Instructions: ins,
 	}
-	return req
+	return req, nil
 }
 
-func (pbConverter) WaitResultResponseToModel(r *WaitResultResponse) ProgramResult {
-	id, _ := ParseProgramID(r.GetId())
-	var err error
-	if r.Error != "" {
-		err = newError(r.Error)
+func (c pbConverter) WaitResultOptionToPb(r WaitResultOption) (*WaitResultRequest, error) {
+	ids := []string{}
+	for _, id := range r.IDs {
+		ids = append(ids, id.String())
 	}
-	return ProgramResult{
+	return &WaitResultRequest{Ids: ids}, nil
+}
+
+func (pbConverter) WaitResultResponseToModel(r *WaitResultResponse) (ProgramResult, error) {
+	if r == nil {
+		return ProgramResult{}, ErrNilPointer
+	}
+
+	id, err := ParseProgramID(r.Id)
+	if err != nil {
+		return ProgramResult{}, err
+	}
+	var resultErr error
+	if r.Error != "" {
+		resultErr = newError(r.Error)
+	}
+	res := ProgramResult{
 		ID:     id,
 		Result: r.Result,
-		Error:  err,
+		Error:  resultErr,
 	}
+	return res, nil
 }
 
-func (pbConverter) WaitResultResponseFromModel(r ProgramResult) *WaitResultResponse {
+func (pbConverter) WaitResultResponseFromModel(r ProgramResult) (*WaitResultResponse, error) {
 	var error string
 	if r.Error != nil {
 		error = r.Error.Error()
 	}
-	result, _ := json.Marshal(r.Result)
+	result, err := marshal(r.Result)
+	if err != nil {
+		return nil, err
+	}
 
-	return &WaitResultResponse{
+	res := &WaitResultResponse{
 		Id:     r.ID.String(),
 		Error:  error,
 		Result: result,
 	}
+	return res, nil
 }
 
 func (c pbConverter) ParseExecuteStream(r *ExecuteStream) (interface{}, error) {
+	if r == nil {
+		return nil, ErrNilPointer
+	}
+
 	switch r.Type {
 	case ExecuteStream_Connect:
-		return c.ParseExecuteStreamConnect(r)
+		return c.parseExecuteStreamConnect(r)
 	case ExecuteStream_Execute:
-		return c.ParseExecuteStreamExecute(r)
+		return c.parseExecuteStreamExecute(r)
 	case ExecuteStream_Result:
-		return c.ParseExecuteStreamResult(r)
+		return c.parseExecuteStreamResult(r)
 	default:
 		return nil, wrapError(ErrRequest, "Client receive invalid type %s", r.Type)
 	}
 }
 
-func (pbConverter) ParseExecuteStreamConnect(r *ExecuteStream) (interface{}, error) {
+func (pbConverter) parseExecuteStreamConnect(r *ExecuteStream) (interface{}, error) {
 	return struct{}{}, nil
 }
 
@@ -492,15 +607,39 @@ type executeStreamExecuteRequest struct {
 	Args []Instruction
 }
 
-func (c pbConverter) ParseExecuteStreamExecute(r *ExecuteStream) (interface{}, error) {
+func (c pbConverter) parseExecuteStreamExecute(r *ExecuteStream) (interface{}, error) {
 	result := executeStreamExecuteRequest{}
-	result.Op = c.InstructionToModel(r.Op).Instruction()
+	op, err := c.InstructionToModel(r.Op)
+	if err != nil {
+		return nil, err
+	}
+	result.Op = op.Instruction()
 	for _, v := range r.Args {
-		result.Args = append(result.Args, c.InstructionToModel(v).Instruction())
+		args, err := c.InstructionToModel(v)
+		if err != nil {
+			return nil, err
+		}
+		result.Args = append(result.Args, args.Instruction())
 	}
 	return result, nil
 }
 
-func (c pbConverter) ParseExecuteStreamResult(r *ExecuteStream) (interface{}, error) {
-	return c.InstructionToModel(r.Result), nil
+func (c pbConverter) parseExecuteStreamResult(r *ExecuteStream) (interface{}, error) {
+	return c.InstructionToModel(r.Result)
+}
+
+func (c pbConverter) WaitResultRequestToProgramIDs(r *WaitResultRequest) ([]ProgramID, error) {
+	if r == nil {
+		return nil, ErrNilPointer
+	}
+
+	ids := []ProgramID{}
+	for _, s := range r.Ids {
+		id, err := ParseProgramID(s)
+		if err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, nil
 }

@@ -425,12 +425,12 @@ type InstructionEntityConverter struct {
 }
 
 func (c InstructionEntityConverter) ToEntity(m *Instruction) (e InstructionEntity, err error) {
-	operand, err := json.Marshal(m.Operand)
+	operand, err := marshal(m.Operand)
 	if err != nil {
 		return
 	}
 
-	result, err := json.Marshal(m.Result)
+	result, err := marshal(m.Result)
 	if err != nil {
 		return
 	}
@@ -460,13 +460,13 @@ func (c InstructionEntityConverter) ToModel(e InstructionEntity) (m Instruction,
 	}
 
 	var operand Operand
-	err = json.Unmarshal([]byte(e.Operand), &operand)
+	err = unmarshal([]byte(e.Operand), &operand)
 	if err != nil {
 		return
 	}
 
 	var result InstructionResult
-	err = json.Unmarshal([]byte(e.Result), &result)
+	err = unmarshal([]byte(e.Result), &result)
 	if err != nil {
 		return
 	}
