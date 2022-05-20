@@ -298,6 +298,7 @@ type dagProcessor struct {
 	cores                 chan struct{}
 	wg                    *sync.WaitGroup
 	err                   error
+	mu                    sync.RWMutex
 }
 
 func newDAGProcessor(pr ProgramRepository, ir InstructionRepository, ep *ExecutorPool) *dagProcessor {
@@ -382,8 +383,8 @@ func (m *dagProcessor) Loop(ctx context.Context, p Program) (err error) {
 
 func (m *dagProcessor) Current(ctx context.Context) (Instruction, error) {
 	for {
-		if m.err != nil {
-			return Instruction{}, m.err
+		if err := m.Error(); err != nil {
+			return Instruction{}, err
 		}
 
 		id, ok := InstructionID{}, true
@@ -422,8 +423,8 @@ func (m *dagProcessor) Current(ctx context.Context) (Instruction, error) {
 }
 
 func (m *dagProcessor) Execute(ctx context.Context, op Instruction) error {
-	if m.err != nil {
-		return m.err
+	if err := m.Error(); err != nil {
+		return err
 	}
 
 	err := m.RequestACore(ctx)
@@ -438,7 +439,7 @@ func (m *dagProcessor) Execute(ctx context.Context, op Instruction) error {
 
 		err := m.execute(ctx, op)
 		if err != nil {
-			m.err = err
+			m.setError(err)
 			return
 		}
 	}()
@@ -492,8 +493,8 @@ func (m *dagProcessor) SaveExecuteResult(ctx context.Context, op Instruction, re
 }
 
 func (m *dagProcessor) Next(ctx context.Context) error {
-	if m.err != nil {
-		return m.err
+	if err := m.Error(); err != nil {
+		return err
 	}
 	return m.DAGState.Next()
 }
@@ -514,6 +515,19 @@ func (m *dagProcessor) ReleaseACore(ctx context.Context) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	}
+}
+
+func (m *dagProcessor) Error() error {
+	m.mu.RLock()
+	err := m.err
+	m.mu.RUnlock()
+	return err
+}
+
+func (m *dagProcessor) setError(err error) {
+	m.mu.Lock()
+	m.err = err
+	m.mu.Unlock()
 }
 
 type dagState struct {
