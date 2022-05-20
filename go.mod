@@ -4,7 +4,6 @@ go 1.17
 
 require (
 	github.com/gofrs/uuid v4.2.0+incompatible
-	github.com/heimdalr/dag v0.0.0-00010101000000-000000000000
 	github.com/pkg/errors v0.9.1
 	github.com/pkg/profile v1.6.0
 	github.com/sirupsen/logrus v1.4.2
@@ -12,6 +11,7 @@ require (
 	github.com/stretchr/testify v1.7.0
 	github.com/urfave/cli/v2 v2.6.0
 	github.com/vmihailenco/msgpack/v5 v5.3.5
+	github.com/yaoguais/dag v1.0.2-0.20220518015637-75a813b30a22
 	google.golang.org/grpc v1.46.0
 	google.golang.org/protobuf v1.28.0
 	gorm.io/driver/clickhouse v0.3.2
@@ -28,7 +28,7 @@ require (
 	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/go-sql-driver/mysql v1.6.0 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
-	github.com/google/uuid v1.1.2 // indirect
+	github.com/google/uuid v1.3.0 // indirect
 	github.com/hashicorp/go-version v1.4.0 // indirect
 	github.com/jackc/chunkreader/v2 v2.0.1 // indirect
 	github.com/jackc/pgconn v1.12.0 // indirect
@@ -51,5 +51,3 @@ require (
 	google.golang.org/genproto v0.0.0-20200526211855-cb27e3aa2013 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c // indirect
 )
-
-replace github.com/heimdalr/dag => github.com/yaoguais/dag v1.0.2-0.20220501172848-2250958aa8ea

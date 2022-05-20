@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/heimdalr/dag"
+	"github.com/yaoguais/dag"
 )
 
 type InstructionVertex struct {
