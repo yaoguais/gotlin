@@ -4,8 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"net"
 
-	. "github.com/yaoguais/gotlin/proto"
+	. "github.com/yaoguais/gotlin/proto" //revive:disable-line
 	"google.golang.org/grpc"
 )
 
@@ -320,6 +321,40 @@ func (c *Client) Shutdown() error {
 type pbConverter struct {
 }
 
+func (pbConverter) RegisterExecutorRequestToModel(r *RegisterExecutorRequest) (e Executor, err error) {
+	id, err := ParseExecutorID(r.Id)
+	if err != nil {
+		return Executor{}, wrapError(err, "Parse Executor id")
+	}
+	_, _, err = net.SplitHostPort(r.Host)
+	if err != nil {
+		return Executor{}, wrapError(err, "Parse Host")
+	}
+	ls := []string{}
+	for _, v := range r.Labels {
+		ls = append(ls, v.Key)
+		ls = append(ls, v.Value)
+	}
+	labels := NewLabels(ls...)
+	_, ok := labels.Find(OpCodeLabelKey)
+	if !ok {
+		return Executor{}, newErrorf("Executor must have %s label", OpCodeLabelKey)
+	}
+
+	return Executor{
+		ID:         id,
+		Labels:     labels,
+		Host:       Host(r.Host),
+		State:      StateRunning,
+		Error:      nil,
+		Limits:     NewEmptyResource(),
+		Usages:     NewEmptyResource(),
+		CreateTime: NewTimestamp(),
+		UpdateTime: NewTimestamp(),
+		FinishTime: TimestampZero,
+	}, nil
+}
+
 func (pbConverter) RegisterExecutorOptionToPb(r RegisterExecutorOption) (*RegisterExecutorRequest, error) {
 	req := &RegisterExecutorRequest{Id: r.ID.String()}
 	for _, v := range r.Labels {
@@ -579,7 +614,7 @@ func (c pbConverter) ParseExecuteStream(r *ExecuteStream) (interface{}, error) {
 	case ExecuteStream_Result:
 		return c.parseExecuteStreamResult(r)
 	default:
-		return nil, wrapError(ErrRequest, "Client receive invalid type %s", r.Type)
+		return nil, wrapErrorf(ErrRequest, "Client receive invalid type %s", r.Type)
 	}
 }
 

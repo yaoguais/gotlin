@@ -70,7 +70,11 @@ func newErrorf(format string, args ...interface{}) error {
 	return errors.Errorf(format, args...)
 }
 
-func wrapError(err error, format string, args ...interface{}) error {
+func wrapError(err error, message string) error {
+	return errors.Wrap(err, message)
+}
+
+func wrapErrorf(err error, format string, args ...interface{}) error {
 	return errors.Wrapf(err, format, args...)
 }
 
@@ -83,5 +87,5 @@ func (e formatError) error(cause error, err error, args ...interface{}) error {
 		return nil
 	}
 	args = append(args, err)
-	return wrapError(cause, e.format+" %v", args...)
+	return wrapErrorf(cause, e.format+" %v", args...)
 }

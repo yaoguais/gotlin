@@ -1,11 +1,5 @@
 package gotlin
 
-import (
-	"net"
-
-	. "github.com/yaoguais/gotlin/proto"
-)
-
 type Executor struct {
 	ID         ExecutorID
 	Labels     Labels
@@ -32,40 +26,6 @@ func NewExecutor() Executor {
 		UpdateTime: NewTimestamp(),
 		FinishTime: TimestampZero,
 	}
-}
-
-func newExecutorFromClient(r *RegisterExecutorRequest) (e Executor, err error) {
-	id, err := ParseExecutorID(r.Id)
-	if err != nil {
-		return Executor{}, wrapError(err, "Parse Executor id")
-	}
-	_, _, err = net.SplitHostPort(r.Host)
-	if err != nil {
-		return Executor{}, wrapError(err, "Parse Host")
-	}
-	ls := []string{}
-	for _, v := range r.Labels {
-		ls = append(ls, v.Key)
-		ls = append(ls, v.Value)
-	}
-	labels := NewLabels(ls...)
-	_, ok := labels.Find(OpCodeLabelKey)
-	if !ok {
-		return Executor{}, newErrorf("Executor must have %s label", OpCodeLabelKey)
-	}
-
-	return Executor{
-		ID:         id,
-		Labels:     labels,
-		Host:       Host(r.Host),
-		State:      StateRunning,
-		Error:      nil,
-		Limits:     NewEmptyResource(),
-		Usages:     NewEmptyResource(),
-		CreateTime: NewTimestamp(),
-		UpdateTime: NewTimestamp(),
-		FinishTime: TimestampZero,
-	}, nil
 }
 
 func (m Executor) AddLabel(label Label) Executor {

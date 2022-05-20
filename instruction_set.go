@@ -152,7 +152,7 @@ func ExecuteArithmeticInstruction(ctx context.Context, op Instruction, args ...I
 		tmp, err := in.InstructionResult(ctx)
 		if err != nil {
 			return InstructionResult{},
-				wrapError(err, "Get arithmetic instruction operands, %v", in.ID.String())
+				wrapErrorf(err, "Get arithmetic instruction operands, %v", in.ID.String())
 		}
 		result = cast.ToFloat64(tmp)
 	}
@@ -162,7 +162,7 @@ func ExecuteArithmeticInstruction(ctx context.Context, op Instruction, args ...I
 		tmp, err := in.InstructionResult(ctx)
 		if err != nil {
 			return InstructionResult{},
-				wrapError(err, "Get arithmetic instruction operands, %v", in.ID.String())
+				wrapErrorf(err, "Get arithmetic instruction operands, %v", in.ID.String())
 		}
 
 		x := cast.ToFloat64(tmp)
@@ -191,7 +191,7 @@ func ExecuteWaitInstruction(ctx context.Context, op Instruction, args ...Instruc
 	v, err := op.OperandValue(ctx)
 	if err != nil {
 		return InstructionResult{},
-			wrapError(err, "Get wait instruction operands, %s", op.ID)
+			wrapErrorf(err, "Get wait instruction operands, %s", op.ID)
 	}
 	time.Sleep(cast.ToDuration(v))
 	return NewRegisterResult(v), nil
@@ -201,7 +201,7 @@ func ExecuteMoveInstruction(ctx context.Context, op Instruction, args ...Instruc
 	v, err := op.OperandValue(ctx)
 	if err != nil {
 		return InstructionResult{},
-			wrapError(err, "Get move instruction operands, %s", op.ID)
+			wrapErrorf(err, "Get move instruction operands, %s", op.ID)
 	}
 	return NewRegisterResult(v), nil
 }
@@ -210,7 +210,7 @@ func ExecuteInputInstruction(ctx context.Context, op Instruction, args ...Instru
 	v, err := op.OperandValue(ctx)
 	if err != nil {
 		return InstructionResult{},
-			wrapError(err, "Get in instruction operands, %s", op.ID)
+			wrapErrorf(err, "Get in instruction operands, %s", op.ID)
 	}
 	return NewRegisterResult(v), nil
 }
@@ -340,7 +340,7 @@ func ExecuteCollectionInstruction(ctx context.Context, op Instruction, args ...I
 		tmp, err := in.InstructionResult(ctx)
 		if err != nil {
 			return InstructionResult{},
-				wrapError(err, "Get collection instruction operands, %v", in.ID.String())
+				wrapErrorf(err, "Get collection instruction operands, %v", in.ID.String())
 		}
 		list = append(list, tmp)
 	}

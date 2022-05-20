@@ -146,7 +146,7 @@ func newPCState(ctx context.Context, p *Program, r ProgramRepository) pcState {
 
 func (m pcState) Validate(ctx context.Context) error {
 	if !m.p.IsPCProcessor() {
-		return wrapError(ErrProcessorType, "Current is %v", m.p.Processor.ControlUnit)
+		return wrapErrorf(ErrProcessorType, "Current is %v", m.p.Processor.ControlUnit)
 	}
 
 	if !m.p.IsState(StateRunning) {
@@ -248,7 +248,7 @@ func (m pcState) Finish(exitErr error) error {
 
 	err := m.r.Save(ctx, &p)
 	if err != nil {
-		return wrapError(err, "Exit error %v", exitErr)
+		return wrapErrorf(err, "Exit error %v", exitErr)
 	}
 	*m.p = p
 	return nil
@@ -285,7 +285,7 @@ func (m pcInstructionState) Error() error {
 	if m.in.IsState(StateExit) {
 		return m.in.Error
 	}
-	return wrapError(ErrInstructionState, "Is not exit, %v", m.in.State)
+	return wrapErrorf(ErrInstructionState, "Is not exit, %v", m.in.State)
 }
 
 type dagProcessor struct {
@@ -559,7 +559,7 @@ func (m dagState) Finish(exitErr error) error {
 
 	err := m.r.Save(ctx, &p)
 	if err != nil {
-		return wrapError(err, "Exit error %v", exitErr)
+		return wrapErrorf(err, "Exit error %v", exitErr)
 	}
 	*m.p = p
 	return nil
@@ -663,7 +663,7 @@ func (m dagInstructionState) Run() error {
 
 func (m dagInstructionState) Error() error {
 	if m.in.IsState(StateBlocked) {
-		return wrapError(ErrInstructionState, "Is blocked, %v", m.in.State)
+		return wrapErrorf(ErrInstructionState, "Is blocked, %v", m.in.State)
 	}
 	return m.in.Error
 }

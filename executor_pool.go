@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	. "github.com/yaoguais/gotlin/proto"
+	. "github.com/yaoguais/gotlin/proto" //revive:disable-line
 )
 
 type ExecutorPool struct {
@@ -16,6 +16,7 @@ type ExecutorPool struct {
 	hs        map[Host]ExecutorID
 	cs        map[Host]*executor
 	mu        sync.RWMutex
+	lb        ExecutorLoadBalancer
 }
 
 func NewExecutorPool(er ExecutorRepository, is *InstructionSet) *ExecutorPool {
@@ -27,6 +28,7 @@ func NewExecutorPool(er ExecutorRepository, is *InstructionSet) *ExecutorPool {
 		hs:                 make(map[Host]ExecutorID),
 		cs:                 make(map[Host]*executor),
 		mu:                 sync.RWMutex{},
+		lb:                 newExecutorRoundRobin(),
 	}
 }
 
@@ -44,7 +46,7 @@ func (m *ExecutorPool) Add(ctx context.Context, executor Executor) (err error) {
 
 	_, exist := m.executors[executor.ID]
 	if exist {
-		return newErrorf("Executor already exists")
+		return newError("Executor already exists")
 	}
 
 	err = m.ExecutorRepository.Save(ctx, &executor)
@@ -104,26 +106,30 @@ func (m *ExecutorPool) FindByHost(ctx context.Context, host Host) (ExecutorID, e
 }
 
 func (m *ExecutorPool) GetExecuteHandler(ctx context.Context, op OpCode) (eh ExecutorHandler, err error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
-	e, found := Executor{}, false
-
-	for i := len(m.ids) - 1; i >= 0; i-- {
+	l := []Executor{}
+	n := len(m.ids)
+	for i := 0; i < n; i++ {
 		id := m.ids[i]
-		e, err = m.ExecutorRepository.Find(ctx, id)
+		e, err := m.ExecutorRepository.Find(ctx, id)
 		if err != nil {
 			return nil, err
 		}
 		ok := e.IsState(StateRunning) && e.Labels.ExistOpCode(op)
 		if ok {
-			found = true
-			break
+			l = append(l, e)
 		}
 	}
 
-	if !found {
+	if len(l) == 0 {
 		return nil, newErrorf("Executor not found, opcode %s", op)
+	}
+
+	e, err := m.lb.Next(ctx, l)
+	if err != nil {
+		return nil, wrapError(err, "Load Balancer")
 	}
 
 	if e.IsEmptyHost() {
@@ -160,7 +166,7 @@ func (m *ExecutorPool) Detach(c *executor) error {
 
 	_, ok := m.cs[c.host]
 	if !ok {
-		return wrapError(ErrNotFound, "Executor %s", c.host)
+		return wrapErrorf(ErrNotFound, "Executor %s", c.host)
 	}
 	delete(m.cs, c.host)
 
@@ -321,4 +327,34 @@ func (s *subInstructionResult) Close() {
 		close(s.errCh)
 	}
 	s.mu.Unlock()
+}
+
+type ExecutorLoadBalancer interface {
+	Next(ctx context.Context, l []Executor) (Executor, error)
+}
+
+type executorRoundRobin struct {
+	i int64
+}
+
+func newExecutorRoundRobin() *executorRoundRobin {
+	return &executorRoundRobin{i: 0}
+}
+
+func (e *executorRoundRobin) Next(ctx context.Context, l []Executor) (Executor, error) {
+	n := int64(len(l))
+	i := e.nextIndex() % n
+	return l[i], nil
+}
+
+func (e *executorRoundRobin) nextIndex() int64 {
+	i := e.i
+	if i < 0 {
+		i = 0
+	}
+	e.i++
+	if e.i < 0 {
+		e.i = 0
+	}
+	return i
 }

@@ -9,7 +9,7 @@ import (
 	"os"
 
 	"github.com/vmihailenco/msgpack/v5"
-	. "github.com/yaoguais/gotlin/proto"
+	. "github.com/yaoguais/gotlin/proto" //revive:disable-line
 	"google.golang.org/grpc"
 	"gorm.io/gorm"
 )

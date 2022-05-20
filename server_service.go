@@ -3,7 +3,7 @@ package gotlin
 import (
 	"context"
 
-	. "github.com/yaoguais/gotlin/proto"
+	. "github.com/yaoguais/gotlin/proto" //revive:disable-line
 	"google.golang.org/grpc/peer"
 )
 
@@ -28,7 +28,7 @@ func (s *serverServiceImpl) RegisterExecutor(ctx context.Context, req *RegisterE
 		return nil, newErrorf("Unrecognized client address")
 	}
 	req.Host = p.Addr.String()
-	executor, err := newExecutorFromClient(req)
+	executor, err := pbConverter{}.RegisterExecutorRequestToModel(req)
 	if err != nil {
 		return
 	}

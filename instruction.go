@@ -77,7 +77,7 @@ func (m Instruction) Finish(result InstructionResult, err error) Instruction {
 		if m.Error == nil {
 			m.Error = err
 		} else {
-			m.Error = wrapError(err, m.Error.Error())
+			m.Error = wrapErrorf(err, m.Error.Error())
 		}
 	} else {
 		m.Result = result
