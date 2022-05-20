@@ -2,6 +2,8 @@ package gotlin
 
 import (
 	"net"
+
+	. "github.com/yaoguais/gotlin/proto"
 )
 
 type Executor struct {

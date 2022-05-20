@@ -11,17 +11,17 @@ import (
 )
 
 var (
-	_ SchedulerRepository   = (*SchedulerDBRepository)(nil)
-	_ ProgramRepository     = (*ProgramDBRepository)(nil)
-	_ InstructionRepository = (*InstructionDBRepository)(nil)
-	_ ExecutorRepository    = (*ExecutorDBRepository)(nil)
+	_ SchedulerRepository   = (*schedulerDBRepository)(nil)
+	_ ProgramRepository     = (*programDBRepository)(nil)
+	_ InstructionRepository = (*instructionDBRepository)(nil)
+	_ ExecutorRepository    = (*executorDBRepository)(nil)
 )
 
 var (
-	_ SchedulerRepository   = (*SchedulerMemoryRepository)(nil)
-	_ ProgramRepository     = (*ProgramMemoryRepository)(nil)
-	_ InstructionRepository = (*InstructionMemoryRepository)(nil)
-	_ ExecutorRepository    = (*ExecutorMemoryRepository)(nil)
+	_ SchedulerRepository   = (*schedulerMemoryRepository)(nil)
+	_ ProgramRepository     = (*programMemoryRepository)(nil)
+	_ InstructionRepository = (*instructionMemoryRepository)(nil)
+	_ ExecutorRepository    = (*executorMemoryRepository)(nil)
 )
 
 var (
@@ -63,7 +63,7 @@ func isRecordNotFound(err error) bool {
 	return err != nil && (errors.Cause(err) == ErrNotFound || gerrors.Is(err, gorm.ErrRecordNotFound))
 }
 
-type SchedulerEntity struct {
+type schedulerEntity struct {
 	ID         string `gorm:"primaryKey"`
 	Programs   string
 	CreateTime int64
@@ -71,31 +71,31 @@ type SchedulerEntity struct {
 	FinishTime int64
 }
 
-func (SchedulerEntity) TableName() string {
+func (schedulerEntity) TableName() string {
 	return SchedulerTableName
 }
 
-type SchedulerDBRepository struct {
+type schedulerDBRepository struct {
 	db *gorm.DB
 	formatError
 }
 
-func NewSchedulerDBRepository(db *gorm.DB) SchedulerDBRepository {
+func newSchedulerDBRepository(db *gorm.DB) schedulerDBRepository {
 	e := formatError{format: "Scheduler %s"}
-	return SchedulerDBRepository{db, e}
+	return schedulerDBRepository{db, e}
 }
 
-func (r SchedulerDBRepository) Find(ctx context.Context, id SchedulerID) (m Scheduler, err error) {
-	e := SchedulerEntity{}
+func (r schedulerDBRepository) Find(ctx context.Context, id SchedulerID) (m Scheduler, err error) {
+	e := schedulerEntity{}
 	err = r.db.WithContext(ctx).Where("id = ?", id.String()).First(&e).Error
 	if err != nil {
 		return Scheduler{}, r.error(ErrNotFound, err, id)
 	}
-	m, err = SchedulerEntityConverter{}.ToModel(e)
+	m, err = schedulerEntityConverter{}.ToModel(e)
 	return m, r.error(ErrFind, err, id)
 }
 
-func (r SchedulerDBRepository) Save(ctx context.Context, m *Scheduler) (err error) {
+func (r schedulerDBRepository) Save(ctx context.Context, m *Scheduler) (err error) {
 	_, err = r.Find(ctx, m.ID)
 	if isRecordNotFound(err) {
 		err = r.create(ctx, m)
@@ -107,16 +107,16 @@ func (r SchedulerDBRepository) Save(ctx context.Context, m *Scheduler) (err erro
 	return r.error(ErrPersistent, err, m.ID)
 }
 
-func (r SchedulerDBRepository) create(ctx context.Context, m *Scheduler) (err error) {
-	e, err := SchedulerEntityConverter{}.ToEntity(m)
+func (r schedulerDBRepository) create(ctx context.Context, m *Scheduler) (err error) {
+	e, err := schedulerEntityConverter{}.ToEntity(m)
 	if err != nil {
 		return
 	}
 	return r.db.WithContext(ctx).Create(&e).Error
 }
 
-func (r SchedulerDBRepository) update(ctx context.Context, m *Scheduler) (err error) {
-	e, err := SchedulerEntityConverter{}.ToEntity(m)
+func (r schedulerDBRepository) update(ctx context.Context, m *Scheduler) (err error) {
+	e, err := schedulerEntityConverter{}.ToEntity(m)
 	if err != nil {
 		return
 	}
@@ -145,15 +145,15 @@ func (r SchedulerDBRepository) update(ctx context.Context, m *Scheduler) (err er
 	return
 }
 
-type SchedulerEntityConverter struct {
+type schedulerEntityConverter struct {
 }
 
-func (c SchedulerEntityConverter) ToEntity(m *Scheduler) (e SchedulerEntity, err error) {
+func (c schedulerEntityConverter) ToEntity(m *Scheduler) (e schedulerEntity, err error) {
 	programs, err := json.Marshal(m.Programs)
 	if err != nil {
 		return
 	}
-	return SchedulerEntity{
+	return schedulerEntity{
 		ID:         m.ID.String(),
 		Programs:   string(programs),
 		CreateTime: m.CreateTime.Value(),
@@ -162,7 +162,7 @@ func (c SchedulerEntityConverter) ToEntity(m *Scheduler) (e SchedulerEntity, err
 	}, nil
 }
 
-func (c SchedulerEntityConverter) ToModel(e SchedulerEntity) (m Scheduler, err error) {
+func (c schedulerEntityConverter) ToModel(e schedulerEntity) (m Scheduler, err error) {
 	id, err := ParseSchedulerID(e.ID)
 	if err != nil {
 		return
@@ -183,7 +183,7 @@ func (c SchedulerEntityConverter) ToModel(e SchedulerEntity) (m Scheduler, err e
 	}, nil
 }
 
-type ProgramEntity struct {
+type programEntity struct {
 	ID         string `gorm:"primaryKey"`
 	Code       string
 	State      string
@@ -194,31 +194,31 @@ type ProgramEntity struct {
 	FinishTime int64
 }
 
-func (ProgramEntity) TableName() string {
+func (programEntity) TableName() string {
 	return ProgramTableName
 }
 
-type ProgramDBRepository struct {
+type programDBRepository struct {
 	db *gorm.DB
 	formatError
 }
 
-func NewProgramDBRepository(db *gorm.DB) ProgramDBRepository {
+func newProgramDBRepository(db *gorm.DB) programDBRepository {
 	e := formatError{format: "Program %s"}
-	return ProgramDBRepository{db, e}
+	return programDBRepository{db, e}
 }
 
-func (r ProgramDBRepository) Find(ctx context.Context, id ProgramID) (m Program, err error) {
-	e := ProgramEntity{}
+func (r programDBRepository) Find(ctx context.Context, id ProgramID) (m Program, err error) {
+	e := programEntity{}
 	err = r.db.WithContext(ctx).Where("id = ?", id.String()).First(&e).Error
 	if err != nil {
 		return Program{}, r.error(ErrNotFound, err, id)
 	}
-	m, err = ProgramEntityConverter{}.ToModel(e)
+	m, err = programEntityConverter{}.ToModel(e)
 	return m, r.error(ErrFind, err, id)
 }
 
-func (r ProgramDBRepository) Save(ctx context.Context, m *Program) (err error) {
+func (r programDBRepository) Save(ctx context.Context, m *Program) (err error) {
 	_, err = r.Find(ctx, m.ID)
 	if isRecordNotFound(err) {
 		err = r.create(ctx, m)
@@ -230,16 +230,16 @@ func (r ProgramDBRepository) Save(ctx context.Context, m *Program) (err error) {
 	return r.error(ErrPersistent, err, m.ID)
 }
 
-func (r ProgramDBRepository) create(ctx context.Context, m *Program) (err error) {
-	e, err := ProgramEntityConverter{}.ToEntity(m)
+func (r programDBRepository) create(ctx context.Context, m *Program) (err error) {
+	e, err := programEntityConverter{}.ToEntity(m)
 	if err != nil {
 		return
 	}
 	return r.db.WithContext(ctx).Create(&e).Error
 }
 
-func (r ProgramDBRepository) update(ctx context.Context, m *Program) (err error) {
-	e, err := ProgramEntityConverter{}.ToEntity(m)
+func (r programDBRepository) update(ctx context.Context, m *Program) (err error) {
+	e, err := programEntityConverter{}.ToEntity(m)
 	if err != nil {
 		return
 	}
@@ -268,10 +268,10 @@ func (r ProgramDBRepository) update(ctx context.Context, m *Program) (err error)
 	return
 }
 
-type ProgramEntityConverter struct {
+type programEntityConverter struct {
 }
 
-func (c ProgramEntityConverter) ToEntity(m *Program) (e ProgramEntity, err error) {
+func (c programEntityConverter) ToEntity(m *Program) (e programEntity, err error) {
 	code, err := json.Marshal(m.Code)
 	if err != nil {
 		return
@@ -287,7 +287,7 @@ func (c ProgramEntityConverter) ToEntity(m *Program) (e ProgramEntity, err error
 		return
 	}
 
-	return ProgramEntity{
+	return programEntity{
 		ID:         m.ID.String(),
 		Code:       string(code),
 		State:      string(m.State),
@@ -299,7 +299,7 @@ func (c ProgramEntityConverter) ToEntity(m *Program) (e ProgramEntity, err error
 	}, nil
 }
 
-func (c ProgramEntityConverter) ToModel(e ProgramEntity) (m Program, err error) {
+func (c programEntityConverter) ToModel(e programEntity) (m Program, err error) {
 	id, err := ParseProgramID(e.ID)
 	if err != nil {
 		return
@@ -334,7 +334,7 @@ func (c ProgramEntityConverter) ToModel(e ProgramEntity) (m Program, err error) 
 	}, nil
 }
 
-type InstructionEntity struct {
+type instructionEntity struct {
 	ID         string `gorm:"primaryKey"`
 	OpCode     string `gorm:"column:opcode"`
 	Operand    string
@@ -346,31 +346,31 @@ type InstructionEntity struct {
 	FinishTime int64
 }
 
-func (InstructionEntity) TableName() string {
+func (instructionEntity) TableName() string {
 	return InstructionTableName
 }
 
-type InstructionDBRepository struct {
+type instructionDBRepository struct {
 	db *gorm.DB
 	formatError
 }
 
-func NewInstructionDBRepository(db *gorm.DB) InstructionDBRepository {
+func newInstructionDBRepository(db *gorm.DB) instructionDBRepository {
 	e := formatError{format: "Instruction %s"}
-	return InstructionDBRepository{db, e}
+	return instructionDBRepository{db, e}
 }
 
-func (r InstructionDBRepository) Find(ctx context.Context, id InstructionID) (m Instruction, err error) {
-	e := InstructionEntity{}
+func (r instructionDBRepository) Find(ctx context.Context, id InstructionID) (m Instruction, err error) {
+	e := instructionEntity{}
 	err = r.db.WithContext(ctx).Where("id = ?", id.String()).First(&e).Error
 	if err != nil {
 		return Instruction{}, r.error(ErrNotFound, err, id)
 	}
-	m, err = InstructionEntityConverter{}.ToModel(e)
+	m, err = instructionEntityConverter{}.ToModel(e)
 	return m, r.error(ErrFind, err, id)
 }
 
-func (r InstructionDBRepository) Save(ctx context.Context, m *Instruction) (err error) {
+func (r instructionDBRepository) Save(ctx context.Context, m *Instruction) (err error) {
 	_, err = r.Find(ctx, m.ID)
 	if isRecordNotFound(err) {
 		err = r.create(ctx, m)
@@ -382,8 +382,8 @@ func (r InstructionDBRepository) Save(ctx context.Context, m *Instruction) (err 
 	return r.error(ErrPersistent, err, m.ID)
 }
 
-func (r InstructionDBRepository) create(ctx context.Context, m *Instruction) (err error) {
-	e, err := InstructionEntityConverter{}.ToEntity(m)
+func (r instructionDBRepository) create(ctx context.Context, m *Instruction) (err error) {
+	e, err := instructionEntityConverter{}.ToEntity(m)
 	if err != nil {
 		return
 	}
@@ -391,8 +391,8 @@ func (r InstructionDBRepository) create(ctx context.Context, m *Instruction) (er
 	return
 }
 
-func (r InstructionDBRepository) update(ctx context.Context, m *Instruction) (err error) {
-	e, err := InstructionEntityConverter{}.ToEntity(m)
+func (r instructionDBRepository) update(ctx context.Context, m *Instruction) (err error) {
+	e, err := instructionEntityConverter{}.ToEntity(m)
 	if err != nil {
 		return
 	}
@@ -421,10 +421,10 @@ func (r InstructionDBRepository) update(ctx context.Context, m *Instruction) (er
 	return
 }
 
-type InstructionEntityConverter struct {
+type instructionEntityConverter struct {
 }
 
-func (c InstructionEntityConverter) ToEntity(m *Instruction) (e InstructionEntity, err error) {
+func (c instructionEntityConverter) ToEntity(m *Instruction) (e instructionEntity, err error) {
 	operand, err := marshal(m.Operand)
 	if err != nil {
 		return
@@ -440,7 +440,7 @@ func (c InstructionEntityConverter) ToEntity(m *Instruction) (e InstructionEntit
 		error = m.Error.Error()
 	}
 
-	return InstructionEntity{
+	return instructionEntity{
 		ID:         m.ID.String(),
 		OpCode:     string(m.OpCode),
 		Operand:    string(operand),
@@ -453,7 +453,7 @@ func (c InstructionEntityConverter) ToEntity(m *Instruction) (e InstructionEntit
 	}, nil
 }
 
-func (c InstructionEntityConverter) ToModel(e InstructionEntity) (m Instruction, err error) {
+func (c instructionEntityConverter) ToModel(e instructionEntity) (m Instruction, err error) {
 	id, err := ParseInstructionID(e.ID)
 	if err != nil {
 		return
@@ -489,7 +489,7 @@ func (c InstructionEntityConverter) ToModel(e InstructionEntity) (m Instruction,
 	}, nil
 }
 
-type ExecutorEntity struct {
+type executorEntity struct {
 	ID         string `gorm:"primaryKey"`
 	Labels     string
 	Host       string
@@ -502,31 +502,31 @@ type ExecutorEntity struct {
 	FinishTime int64
 }
 
-func (ExecutorEntity) TableName() string {
+func (executorEntity) TableName() string {
 	return ExecutorTableName
 }
 
-type ExecutorDBRepository struct {
+type executorDBRepository struct {
 	db *gorm.DB
 	formatError
 }
 
-func NewExecutorDBRepository(db *gorm.DB) ExecutorDBRepository {
+func newExecutorDBRepository(db *gorm.DB) executorDBRepository {
 	e := formatError{format: "Executor %s"}
-	return ExecutorDBRepository{db, e}
+	return executorDBRepository{db, e}
 }
 
-func (r ExecutorDBRepository) Find(ctx context.Context, id ExecutorID) (m Executor, err error) {
-	e := ExecutorEntity{}
+func (r executorDBRepository) Find(ctx context.Context, id ExecutorID) (m Executor, err error) {
+	e := executorEntity{}
 	err = r.db.WithContext(ctx).Where("id = ?", id.String()).First(&e).Error
 	if err != nil {
 		return Executor{}, r.error(ErrNotFound, err, m.ID)
 	}
-	m, err = ExecutorEntityConverter{}.ToModel(e)
+	m, err = executorEntityConverter{}.ToModel(e)
 	return m, r.error(ErrFind, err, m.ID)
 }
 
-func (r ExecutorDBRepository) Save(ctx context.Context, m *Executor) (err error) {
+func (r executorDBRepository) Save(ctx context.Context, m *Executor) (err error) {
 	_, err = r.Find(ctx, m.ID)
 	if isRecordNotFound(err) {
 		err = r.create(ctx, m)
@@ -538,16 +538,16 @@ func (r ExecutorDBRepository) Save(ctx context.Context, m *Executor) (err error)
 	return r.error(ErrPersistent, err, m.ID)
 }
 
-func (r ExecutorDBRepository) create(ctx context.Context, m *Executor) (err error) {
-	e, err := ExecutorEntityConverter{}.ToEntity(m)
+func (r executorDBRepository) create(ctx context.Context, m *Executor) (err error) {
+	e, err := executorEntityConverter{}.ToEntity(m)
 	if err != nil {
 		return
 	}
 	return r.db.WithContext(ctx).Create(&e).Error
 }
 
-func (r ExecutorDBRepository) update(ctx context.Context, m *Executor) (err error) {
-	e, err := ExecutorEntityConverter{}.ToEntity(m)
+func (r executorDBRepository) update(ctx context.Context, m *Executor) (err error) {
+	e, err := executorEntityConverter{}.ToEntity(m)
 	if err != nil {
 		return
 	}
@@ -576,10 +576,10 @@ func (r ExecutorDBRepository) update(ctx context.Context, m *Executor) (err erro
 	return
 }
 
-type ExecutorEntityConverter struct {
+type executorEntityConverter struct {
 }
 
-func (c ExecutorEntityConverter) ToEntity(m *Executor) (e ExecutorEntity, err error) {
+func (c executorEntityConverter) ToEntity(m *Executor) (e executorEntity, err error) {
 	labels, err := json.Marshal(m.Labels)
 	if err != nil {
 		return
@@ -600,7 +600,7 @@ func (c ExecutorEntityConverter) ToEntity(m *Executor) (e ExecutorEntity, err er
 		return
 	}
 
-	return ExecutorEntity{
+	return executorEntity{
 		ID:         m.ID.String(),
 		Labels:     string(labels),
 		Host:       m.Host.String(),
@@ -614,7 +614,7 @@ func (c ExecutorEntityConverter) ToEntity(m *Executor) (e ExecutorEntity, err er
 	}, nil
 }
 
-func (c ExecutorEntityConverter) ToModel(e ExecutorEntity) (m Executor, err error) {
+func (c executorEntityConverter) ToModel(e executorEntity) (m Executor, err error) {
 	id, err := ParseExecutorID(e.ID)
 	if err != nil {
 		return
@@ -657,22 +657,22 @@ func (c ExecutorEntityConverter) ToModel(e ExecutorEntity) (m Executor, err erro
 	}, nil
 }
 
-type SchedulerMemoryRepository struct {
+type schedulerMemoryRepository struct {
 	m  map[SchedulerID]Scheduler
 	mu *sync.RWMutex
 	formatError
 }
 
-func NewSchedulerMemoryRepository() SchedulerMemoryRepository {
+func newSchedulerMemoryRepository() schedulerMemoryRepository {
 	e := formatError{format: "Scheduler %s"}
-	return SchedulerMemoryRepository{
+	return schedulerMemoryRepository{
 		m:           make(map[SchedulerID]Scheduler),
 		mu:          &sync.RWMutex{},
 		formatError: e,
 	}
 }
 
-func (r SchedulerMemoryRepository) Find(ctx context.Context, id SchedulerID) (Scheduler, error) {
+func (r schedulerMemoryRepository) Find(ctx context.Context, id SchedulerID) (Scheduler, error) {
 	r.mu.RLock()
 	m, ok := r.m[id]
 	r.mu.RUnlock()
@@ -682,7 +682,7 @@ func (r SchedulerMemoryRepository) Find(ctx context.Context, id SchedulerID) (Sc
 	return m, nil
 }
 
-func (r SchedulerMemoryRepository) Save(ctx context.Context, m *Scheduler) error {
+func (r schedulerMemoryRepository) Save(ctx context.Context, m *Scheduler) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -703,22 +703,22 @@ func (r SchedulerMemoryRepository) Save(ctx context.Context, m *Scheduler) error
 	return nil
 }
 
-type ProgramMemoryRepository struct {
+type programMemoryRepository struct {
 	m  map[ProgramID]Program
 	mu *sync.RWMutex
 	formatError
 }
 
-func NewProgramMemoryRepository() ProgramMemoryRepository {
+func newProgramMemoryRepository() programMemoryRepository {
 	e := formatError{format: "Program %s"}
-	return ProgramMemoryRepository{
+	return programMemoryRepository{
 		m:           make(map[ProgramID]Program),
 		mu:          &sync.RWMutex{},
 		formatError: e,
 	}
 }
 
-func (r ProgramMemoryRepository) Find(ctx context.Context, id ProgramID) (Program, error) {
+func (r programMemoryRepository) Find(ctx context.Context, id ProgramID) (Program, error) {
 	r.mu.RLock()
 	m, ok := r.m[id]
 	r.mu.RUnlock()
@@ -728,7 +728,7 @@ func (r ProgramMemoryRepository) Find(ctx context.Context, id ProgramID) (Progra
 	return m, nil
 }
 
-func (r ProgramMemoryRepository) Save(ctx context.Context, m *Program) error {
+func (r programMemoryRepository) Save(ctx context.Context, m *Program) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -749,22 +749,22 @@ func (r ProgramMemoryRepository) Save(ctx context.Context, m *Program) error {
 	return nil
 }
 
-type InstructionMemoryRepository struct {
+type instructionMemoryRepository struct {
 	m  map[InstructionID]Instruction
 	mu *sync.RWMutex
 	formatError
 }
 
-func NewInstructionMemoryRepository() InstructionMemoryRepository {
+func newInstructionMemoryRepository() instructionMemoryRepository {
 	e := formatError{format: "Instruction %s"}
-	return InstructionMemoryRepository{
+	return instructionMemoryRepository{
 		m:           make(map[InstructionID]Instruction),
 		mu:          &sync.RWMutex{},
 		formatError: e,
 	}
 }
 
-func (r InstructionMemoryRepository) Find(ctx context.Context, id InstructionID) (Instruction, error) {
+func (r instructionMemoryRepository) Find(ctx context.Context, id InstructionID) (Instruction, error) {
 	r.mu.RLock()
 	m, ok := r.m[id]
 	r.mu.RUnlock()
@@ -774,7 +774,7 @@ func (r InstructionMemoryRepository) Find(ctx context.Context, id InstructionID)
 	return m, nil
 }
 
-func (r InstructionMemoryRepository) Save(ctx context.Context, m *Instruction) error {
+func (r instructionMemoryRepository) Save(ctx context.Context, m *Instruction) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -795,22 +795,22 @@ func (r InstructionMemoryRepository) Save(ctx context.Context, m *Instruction) e
 	return nil
 }
 
-type ExecutorMemoryRepository struct {
+type executorMemoryRepository struct {
 	m  map[ExecutorID]Executor
 	mu *sync.RWMutex
 	formatError
 }
 
-func NewExecutorMemoryRepository() ExecutorMemoryRepository {
+func newExecutorMemoryRepository() executorMemoryRepository {
 	e := formatError{format: "Executor %s"}
-	return ExecutorMemoryRepository{
+	return executorMemoryRepository{
 		m:           make(map[ExecutorID]Executor),
 		mu:          &sync.RWMutex{},
 		formatError: e,
 	}
 }
 
-func (r ExecutorMemoryRepository) Find(ctx context.Context, id ExecutorID) (Executor, error) {
+func (r executorMemoryRepository) Find(ctx context.Context, id ExecutorID) (Executor, error) {
 	r.mu.RLock()
 	m, ok := r.m[id]
 	r.mu.RUnlock()
@@ -820,7 +820,7 @@ func (r ExecutorMemoryRepository) Find(ctx context.Context, id ExecutorID) (Exec
 	return m, nil
 }
 
-func (r ExecutorMemoryRepository) Save(ctx context.Context, m *Executor) error {
+func (r executorMemoryRepository) Save(ctx context.Context, m *Executor) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 

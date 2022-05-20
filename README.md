@@ -133,10 +133,10 @@ func main() {
 	query1 := "select name from test_collections where id IN (1, 3)"
 	query2 := "select name from test_collections where id IN (2, 4)"
 	converters := []QueryConverter{QueryConverterFlat}
-	d1 := NewDatabaseQuery(driver, dsn, query1, converters)
-	i1 := NewInstruction().ChangeDatabaseQuery(d1)
-	d2 := NewDatabaseQuery(driver, dsn, query2, converters)
-	i2 := NewInstruction().ChangeDatabaseQuery(d2)
+	d1 := NewDatabaseInput(driver, dsn, query1, converters)
+	i1 := NewInstruction().ChangeDatabaseInput(d1)
+	d2 := NewDatabaseInput(driver, dsn, query2, converters)
+	i2 := NewInstruction().ChangeDatabaseInput(d2)
 	i3 := NewInstruction().ChangeToArithmetic(OpCodeIntersect)
 	ins := []Instructioner{i1, i2, i3}
 

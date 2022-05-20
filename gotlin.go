@@ -9,6 +9,7 @@ import (
 	"os"
 
 	"github.com/vmihailenco/msgpack/v5"
+	. "github.com/yaoguais/gotlin/proto"
 	"google.golang.org/grpc"
 	"gorm.io/gorm"
 )
@@ -17,10 +18,10 @@ type Option func(g *Gotlin)
 
 func WithDatabase(db *gorm.DB) Option {
 	return func(g *Gotlin) {
-		g.SchedulerRepository = NewSchedulerDBRepository(db)
-		g.ProgramRepository = NewProgramDBRepository(db)
-		g.InstructionRepository = NewInstructionDBRepository(db)
-		g.ExecutorRepository = NewExecutorDBRepository(db)
+		g.SchedulerRepository = newSchedulerDBRepository(db)
+		g.ProgramRepository = newProgramDBRepository(db)
+		g.InstructionRepository = newInstructionDBRepository(db)
+		g.ExecutorRepository = newExecutorDBRepository(db)
 	}
 }
 
@@ -73,7 +74,7 @@ var (
 		Operand{},
 		EmptyInput{},
 		Immediate{},
-		DatabaseQuery{},
+		DatabaseInput{},
 		InstructionResult{},
 		EmptyResult{},
 		RegisterResult{},
@@ -105,14 +106,14 @@ func SetMarshalType(v MarshalType) {
 		marshal = msgpack.Marshal
 		unmarshal = msgpack.Unmarshal
 	case MarshalTypeGob:
-		marshal = GobMarshal
-		unmarshal = GobUnmarshal
+		marshal = gobMarshal
+		unmarshal = gobUnmarshal
 	default:
 		panic("Undefined marshal type " + string(v))
 	}
 }
 
-func GobMarshal(v interface{}) ([]byte, error) {
+func gobMarshal(v interface{}) ([]byte, error) {
 	b := new(bytes.Buffer)
 	err := gob.NewEncoder(b).Encode(v)
 	if err != nil {
@@ -121,7 +122,7 @@ func GobMarshal(v interface{}) ([]byte, error) {
 	return b.Bytes(), nil
 }
 
-func GobUnmarshal(data []byte, v interface{}) error {
+func gobUnmarshal(data []byte, v interface{}) error {
 	b := bytes.NewBuffer(data)
 	return gob.NewDecoder(b).Decode(v)
 }
@@ -147,10 +148,10 @@ type Gotlin struct {
 func NewGotlin(options ...Option) (*Gotlin, error) {
 	id := NewID().String()
 	g := &Gotlin{
-		SchedulerRepository:   NewSchedulerMemoryRepository(),
-		ProgramRepository:     NewProgramMemoryRepository(),
-		InstructionRepository: NewInstructionMemoryRepository(),
-		ExecutorRepository:    NewExecutorMemoryRepository(),
+		SchedulerRepository:   newSchedulerMemoryRepository(),
+		ProgramRepository:     newProgramMemoryRepository(),
+		InstructionRepository: newInstructionMemoryRepository(),
+		ExecutorRepository:    newExecutorMemoryRepository(),
 		EnableServer:          false,
 		ServerAddress:         ":9527",
 		ServerExecutor:        true,

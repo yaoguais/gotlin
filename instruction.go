@@ -59,9 +59,9 @@ func (m Instruction) ChangeToWait(value interface{}) Instruction {
 	return m
 }
 
-func (m Instruction) ChangeDatabaseQuery(v DatabaseQuery) Instruction {
+func (m Instruction) ChangeDatabaseInput(v DatabaseInput) Instruction {
 	m.OpCode = OpCodeIn
-	m.Operand = NewDatabaseQueryOperand(v)
+	m.Operand = NewDatabaseInputOperand(v)
 	return m
 }
 

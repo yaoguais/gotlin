@@ -31,7 +31,7 @@ func NewImmediateValue(u interface{}) Operand {
 	return Operand{Type: v.Type(), Value: v}
 }
 
-func NewDatabaseQueryOperand(v DatabaseQuery) Operand {
+func NewDatabaseInputOperand(v DatabaseInput) Operand {
 	return Operand{Type: v.Type(), Value: v}
 }
 
@@ -65,7 +65,7 @@ func (v *Operand) unmarshalJSON(data []byte, f Unmarshal) (err error) {
 	var (
 		emptyInput    = EmptyInput{}
 		immediate     = Immediate{}
-		databaseQuery = DatabaseQuery{}
+		databaseQuery = DatabaseInput{}
 	)
 
 	switch root.Type {
@@ -102,7 +102,7 @@ func (v *Operand) unmarshalMsgpack(data []byte, f Unmarshal) (err error) {
 	var (
 		emptyInput    = EmptyInput{}
 		immediate     = Immediate{}
-		databaseQuery = DatabaseQuery{}
+		databaseQuery = DatabaseInput{}
 	)
 
 	switch root.Type {
@@ -156,30 +156,30 @@ type QueryConverter string
 const QueryConverterFlat QueryConverter = "Flat"
 const QueryConverterFirstValue QueryConverter = "FirstValue"
 
-type DatabaseQuery struct {
+type DatabaseInput struct {
 	Driver     string
 	DSN        string
 	Query      string
 	Converters []QueryConverter
 }
 
-func NewDatabaseQuery(driver, dsn, query string, converters []QueryConverter) DatabaseQuery {
-	return DatabaseQuery{driver, dsn, query, converters}
+func NewDatabaseInput(driver, dsn, query string, converters []QueryConverter) DatabaseInput {
+	return DatabaseInput{driver, dsn, query, converters}
 }
 
-func (v DatabaseQuery) Type() string {
+func (v DatabaseInput) Type() string {
 	return "Database"
 }
 
-func (v DatabaseQuery) OperandValue(ctx context.Context) (interface{}, error) {
+func (v DatabaseInput) OperandValue(ctx context.Context) (interface{}, error) {
 	db, err := databasePool.Get(v.Driver, v.DSN)
 	if err != nil {
 		return nil, wrapError(err, "Get a database connection")
 	}
-	return v.DoQuery(ctx, db)
+	return v.doQuery(ctx, db)
 }
 
-func (v DatabaseQuery) IsFlat() bool {
+func (v DatabaseInput) isFlat() bool {
 	for _, c := range v.Converters {
 		if c == QueryConverterFlat {
 			return true
@@ -188,7 +188,7 @@ func (v DatabaseQuery) IsFlat() bool {
 	return false
 }
 
-func (v DatabaseQuery) IsFirstValue() bool {
+func (v DatabaseInput) isFirstValue() bool {
 	for _, c := range v.Converters {
 		if c == QueryConverterFirstValue {
 			return true
@@ -197,17 +197,17 @@ func (v DatabaseQuery) IsFirstValue() bool {
 	return false
 }
 
-func (v DatabaseQuery) DoQuery(ctx context.Context, db *gorm.DB) (interface{}, error) {
-	if v.IsFirstValue() {
-		return v.FirstValueQuery(ctx, db)
+func (v DatabaseInput) doQuery(ctx context.Context, db *gorm.DB) (interface{}, error) {
+	if v.isFirstValue() {
+		return v.firstValueQuery(ctx, db)
 	}
-	if v.IsFlat() {
-		return v.FlatQuery(ctx, db)
+	if v.isFlat() {
+		return v.flatQuery(ctx, db)
 	}
-	return v.MapQuery(ctx, db)
+	return v.tableQuery(ctx, db)
 }
 
-func (v DatabaseQuery) FirstValueQuery(ctx context.Context, db *gorm.DB) (interface{}, error) {
+func (v DatabaseInput) firstValueQuery(ctx context.Context, db *gorm.DB) (interface{}, error) {
 	rows, err := db.WithContext(ctx).Raw(v.Query).Rows()
 	if err != nil {
 		return nil, err
@@ -232,7 +232,7 @@ func (v DatabaseQuery) FirstValueQuery(ctx context.Context, db *gorm.DB) (interf
 	return EmptyQueryResult, nil
 }
 
-func (v DatabaseQuery) FlatQuery(ctx context.Context, db *gorm.DB) (interface{}, error) {
+func (v DatabaseInput) flatQuery(ctx context.Context, db *gorm.DB) (interface{}, error) {
 	rows, err := db.WithContext(ctx).Raw(v.Query).Rows()
 	if err != nil {
 		return nil, err
@@ -264,7 +264,7 @@ func (v DatabaseQuery) FlatQuery(ctx context.Context, db *gorm.DB) (interface{},
 	return list, nil
 }
 
-func (v DatabaseQuery) MapQuery(ctx context.Context, db *gorm.DB) (interface{}, error) {
+func (v DatabaseInput) tableQuery(ctx context.Context, db *gorm.DB) (interface{}, error) {
 	rows, err := db.WithContext(ctx).Raw(v.Query).Rows()
 	if err != nil {
 		return nil, err

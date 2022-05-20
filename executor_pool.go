@@ -3,6 +3,8 @@ package gotlin
 import (
 	"context"
 	"sync"
+
+	. "github.com/yaoguais/gotlin/proto"
 )
 
 type ExecutorPool struct {

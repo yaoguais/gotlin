@@ -3,12 +3,13 @@ package gotlin
 import (
 	"context"
 
+	. "github.com/yaoguais/gotlin/proto"
 	"google.golang.org/grpc/peer"
 )
 
-var _ ServerServiceServer = (*serverService)(nil)
+var _ ServerServiceServer = (*serverServiceImpl)(nil)
 
-type serverService struct {
+type serverServiceImpl struct {
 	UnimplementedServerServiceServer
 
 	g *Gotlin
@@ -16,12 +17,12 @@ type serverService struct {
 	formatError
 }
 
-func newServerService(g *Gotlin) *serverService {
+func newServerService(g *Gotlin) *serverServiceImpl {
 	fe := formatError{"Server " + g.id + " %s"}
-	return &serverService{g: g, formatError: fe, l: g.l}
+	return &serverServiceImpl{g: g, formatError: fe, l: g.l}
 }
 
-func (s *serverService) RegisterExecutor(ctx context.Context, req *RegisterExecutorRequest) (resp *RegisterExecutorResponse, err error) {
+func (s *serverServiceImpl) RegisterExecutor(ctx context.Context, req *RegisterExecutorRequest) (resp *RegisterExecutorResponse, err error) {
 	p, ok := peer.FromContext(ctx)
 	if !ok {
 		return nil, newErrorf("Unrecognized client address")
@@ -38,7 +39,7 @@ func (s *serverService) RegisterExecutor(ctx context.Context, req *RegisterExecu
 	return &RegisterExecutorResponse{}, nil
 }
 
-func (s *serverService) UnregisterExecutor(ctx context.Context, req *UnregisterExecutorRequest) (resp *UnregisterExecutorResponse, err error) {
+func (s *serverServiceImpl) UnregisterExecutor(ctx context.Context, req *UnregisterExecutorRequest) (resp *UnregisterExecutorResponse, err error) {
 	id, err := ParseExecutorID(req.Id)
 	if err != nil {
 		return
@@ -55,11 +56,11 @@ func (s *serverService) UnregisterExecutor(ctx context.Context, req *UnregisterE
 	return &UnregisterExecutorResponse{}, nil
 }
 
-func (s *serverService) Execute(stream ServerService_ExecuteServer) error {
+func (s *serverServiceImpl) Execute(stream ServerService_ExecuteServer) error {
 	return s.executeLoop(stream)
 }
 
-func (s *serverService) executeLoop(stream ServerService_ExecuteServer) error {
+func (s *serverServiceImpl) executeLoop(stream ServerService_ExecuteServer) error {
 	r, err := stream.Recv()
 	if err != nil {
 		return s.error(ErrResponse, err, "Receive connection requests from compute nodes")
@@ -100,7 +101,7 @@ func (s *serverService) executeLoop(stream ServerService_ExecuteServer) error {
 	return nil
 }
 
-func (s *serverService) RequestScheduler(ctx context.Context, r *RequestSchedulerRequest) (*RequestSchedulerResponse, error) {
+func (s *serverServiceImpl) RequestScheduler(ctx context.Context, r *RequestSchedulerRequest) (*RequestSchedulerResponse, error) {
 	option, err := pbConverter{}.RequestSchedulerRequestToModel(r)
 	if err != nil {
 		return nil, s.error(ErrConverter, err, "RequestSchedulerRequest")
@@ -114,7 +115,7 @@ func (s *serverService) RequestScheduler(ctx context.Context, r *RequestSchedule
 	}, nil
 }
 
-func (s *serverService) RunProgram(ctx context.Context, r *RunProgramRequest) (*RunProgramResponse, error) {
+func (s *serverServiceImpl) RunProgram(ctx context.Context, r *RunProgramRequest) (*RunProgramResponse, error) {
 	pc := pbConverter{}
 	id, err := ParseSchedulerID(r.SchedulerId)
 	if err != nil {
@@ -136,7 +137,7 @@ func (s *serverService) RunProgram(ctx context.Context, r *RunProgramRequest) (*
 	return &RunProgramResponse{}, nil
 }
 
-func (s *serverService) WaitResult(r *WaitResultRequest, stream ServerService_WaitResultServer) error {
+func (s *serverServiceImpl) WaitResult(r *WaitResultRequest, stream ServerService_WaitResultServer) error {
 	ctx := stream.Context()
 	pc := pbConverter{}
 

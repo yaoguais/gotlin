@@ -297,29 +297,29 @@ func collectionValuesToInstructionResult(cv collectionValues, op OpCode) (Instru
 	case len(strings) > 0:
 		switch op {
 		case OpCodeIntersect:
-			return fn(StringsIntersect(strings)), true
+			return fn(stringsIntersect(strings)), true
 		case OpCodeUnion:
-			return fn(StringsUnion(strings)), true
+			return fn(stringsUnion(strings)), true
 		case OpCodeDiff:
-			return fn(StringsDiff(strings)), true
+			return fn(stringsDiff(strings)), true
 		}
 	case len(ints) > 0:
 		switch op {
 		case OpCodeIntersect:
-			return fn(IntsIntersect(ints)), true
+			return fn(intsIntersect(ints)), true
 		case OpCodeUnion:
-			return fn(IntsUnion(ints)), true
+			return fn(intsUnion(ints)), true
 		case OpCodeDiff:
-			return fn(IntsDiff(ints)), true
+			return fn(intsDiff(ints)), true
 		}
 	case len(floats) > 0:
 		switch op {
 		case OpCodeIntersect:
-			return fn(FloatsIntersect(floats)), true
+			return fn(floatsIntersect(floats)), true
 		case OpCodeUnion:
-			return fn(FloatsUnion(floats)), true
+			return fn(floatsUnion(floats)), true
 		case OpCodeDiff:
-			return fn(FloatsDiff(floats)), true
+			return fn(floatsDiff(floats)), true
 		}
 	}
 
@@ -371,7 +371,7 @@ func IsReadWriteInstruction(v Instruction) bool {
 	return ReadWriteInstructions[v.OpCode]
 }
 
-func StringsIntersect(ll [][]string) []string {
+func stringsIntersect(ll [][]string) []string {
 	n := len(ll)
 	min := 0
 	for i := 1; i < n; i++ {
@@ -406,7 +406,7 @@ func StringsIntersect(ll [][]string) []string {
 	return l
 }
 
-func IntsIntersect(ll [][]int) []int {
+func intsIntersect(ll [][]int) []int {
 	n := len(ll)
 	min := 0
 	for i := 1; i < n; i++ {
@@ -441,7 +441,7 @@ func IntsIntersect(ll [][]int) []int {
 	return l
 }
 
-func FloatsIntersect(ll [][]float64) []float64 {
+func floatsIntersect(ll [][]float64) []float64 {
 	n := len(ll)
 	min := 0
 	for i := 1; i < n; i++ {
@@ -476,7 +476,7 @@ func FloatsIntersect(ll [][]float64) []float64 {
 	return l
 }
 
-func StringsUnion(ll [][]string) []string {
+func stringsUnion(ll [][]string) []string {
 	n := len(ll)
 	max := 0
 	for i := 1; i < n; i++ {
@@ -500,7 +500,7 @@ func StringsUnion(ll [][]string) []string {
 	return l
 }
 
-func IntsUnion(ll [][]int) []int {
+func intsUnion(ll [][]int) []int {
 	n := len(ll)
 	max := 0
 	for i := 1; i < n; i++ {
@@ -524,7 +524,7 @@ func IntsUnion(ll [][]int) []int {
 	return l
 }
 
-func FloatsUnion(ll [][]float64) []float64 {
+func floatsUnion(ll [][]float64) []float64 {
 	n := len(ll)
 	max := 0
 	for i := 1; i < n; i++ {
@@ -548,7 +548,7 @@ func FloatsUnion(ll [][]float64) []float64 {
 	return l
 }
 
-func StringsDiff(ll [][]string) []string {
+func stringsDiff(ll [][]string) []string {
 	n := len(ll)
 	if n == 0 {
 		return []string{}
@@ -582,7 +582,7 @@ func StringsDiff(ll [][]string) []string {
 	return l
 }
 
-func IntsDiff(ll [][]int) []int {
+func intsDiff(ll [][]int) []int {
 	n := len(ll)
 	if n == 0 {
 		return []int{}
@@ -616,7 +616,7 @@ func IntsDiff(ll [][]int) []int {
 	return l
 }
 
-func FloatsDiff(ll [][]float64) []float64 {
+func floatsDiff(ll [][]float64) []float64 {
 	n := len(ll)
 	if n == 0 {
 		return []float64{}

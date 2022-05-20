@@ -265,7 +265,7 @@ func TestGotlin_ProgramCounterProcessor_WithDBRepository(t *testing.T) {
 }
 
 // Perform an arithmetic calculation "48 + 44", the expected result is 92
-func TestGotlin_DatabaseQuery(t *testing.T) {
+func TestGotlin_DatabaseInput(t *testing.T) {
 	ctx := context.Background()
 
 	db := getTestDB()
@@ -293,11 +293,11 @@ func TestGotlin_DatabaseQuery(t *testing.T) {
 	require.Nil(t, err)
 
 	converters := []QueryConverter{QueryConverterFirstValue}
-	d1 := NewDatabaseQuery(testDriver, testDSN, "select age from test_users where name = 'Rick'", converters)
-	i1 := NewInstruction().ChangeDatabaseQuery(d1)
+	d1 := NewDatabaseInput(testDriver, testDSN, "select age from test_users where name = 'Rick'", converters)
+	i1 := NewInstruction().ChangeDatabaseInput(d1)
 
-	d2 := NewDatabaseQuery(testDriver, testDSN, "select age from test_users where name = 'Michonne'", converters)
-	i2 := NewInstruction().ChangeDatabaseQuery(d2)
+	d2 := NewDatabaseInput(testDriver, testDSN, "select age from test_users where name = 'Michonne'", converters)
+	i2 := NewInstruction().ChangeDatabaseInput(d2)
 
 	i3 := NewInstruction().ChangeToArithmetic(OpCodeAdd)
 
@@ -426,11 +426,11 @@ func TestGotlin_CollectionInstruction(t *testing.T) {
 		require.Nil(t, err)
 
 		converters := []QueryConverter{QueryConverterFlat}
-		d1 := NewDatabaseQuery(testDriver, testDSN, q.Query1, converters)
-		i1 := NewInstruction().ChangeDatabaseQuery(d1)
+		d1 := NewDatabaseInput(testDriver, testDSN, q.Query1, converters)
+		i1 := NewInstruction().ChangeDatabaseInput(d1)
 
-		d2 := NewDatabaseQuery(testDriver, testDSN, q.Query2, converters)
-		i2 := NewInstruction().ChangeDatabaseQuery(d2)
+		d2 := NewDatabaseInput(testDriver, testDSN, q.Query2, converters)
+		i2 := NewInstruction().ChangeDatabaseInput(d2)
 
 		i3 := NewInstruction().ChangeToArithmetic(q.OpCode)
 

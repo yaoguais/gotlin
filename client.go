@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 
+	. "github.com/yaoguais/gotlin/proto"
 	"google.golang.org/grpc"
 )
 
@@ -26,22 +27,6 @@ func WithClientInstructionSet(is *InstructionSet) ClientOption {
 	return func(c *Client) {
 		c.InstructionSet = is
 	}
-}
-
-type ClientCallOption struct {
-	GRPCOption []grpc.CallOption
-}
-
-type ClientCallOptions []ClientCallOption
-
-func (o ClientCallOptions) GRPCOption() []grpc.CallOption {
-	n := len(o)
-	if n > 1 {
-		panic("Only supports passing in one ClientCallOption parameter")
-	} else if n == 0 {
-		return []grpc.CallOption{}
-	}
-	return o[0].GRPCOption
 }
 
 type Client struct {
@@ -86,13 +71,13 @@ type RegisterExecutorOption struct {
 	ID          ExecutorID
 	Host        Host
 	Labels      Labels
-	CallOptions ClientCallOptions
+	CallOptions []grpc.CallOption
 }
 
 type UnregisterExecutorOption struct {
 	ID          ExecutorID
 	Error       error
-	CallOptions ClientCallOptions
+	CallOptions []grpc.CallOption
 }
 
 func (c *Client) RegisterExecutor(ctx context.Context, r RegisterExecutorOption) error {
@@ -101,7 +86,7 @@ func (c *Client) RegisterExecutor(ctx context.Context, r RegisterExecutorOption)
 	if err != nil {
 		return c.error(ErrConverter, err, "RegisterExecutorOption")
 	}
-	_, err = c.c.RegisterExecutor(ctx, req, r.CallOptions.GRPCOption()...)
+	_, err = c.c.RegisterExecutor(ctx, req, r.CallOptions...)
 	return c.error(ErrRequest, err, "Register Executor")
 }
 
@@ -110,23 +95,23 @@ func (c *Client) UnregisterExecutor(ctx context.Context, r UnregisterExecutorOpt
 	if err != nil {
 		return c.error(ErrConverter, err, "UnregisterExecutorOption")
 	}
-	_, err = c.c.UnregisterExecutor(ctx, req, r.CallOptions.GRPCOption()...)
+	_, err = c.c.UnregisterExecutor(ctx, req, r.CallOptions...)
 	return c.error(ErrRequest, err, "Unregister Executor")
 }
 
 type StartComputeNodeOption struct {
-	CallOptions ClientCallOptions
+	CallOptions []grpc.CallOption
 }
 
 func (c *Client) StartComputeNode(ctx context.Context, r StartComputeNodeOption) error {
 	return c.executeLoop(ctx, r.CallOptions)
 }
 
-func (c *Client) executeLoop(ctx context.Context, callOptions ClientCallOptions) error {
+func (c *Client) executeLoop(ctx context.Context, callOptions []grpc.CallOption) error {
 	logger := c.l.Logger()
 	logger.Info("The compute node is connecting to the server")
 
-	stream, err := c.c.Execute(ctx, callOptions.GRPCOption()...)
+	stream, err := c.c.Execute(ctx, callOptions...)
 	if err != nil {
 		return c.error(ErrRequest, err, "Client execute instructions")
 	}
@@ -239,7 +224,7 @@ func (c *Client) sendResult(stream ServerService_ExecuteClient,
 
 type RequestSchedulerOption struct {
 	SchedulerOption
-	CallOptions ClientCallOptions
+	CallOptions []grpc.CallOption
 }
 
 func (c *Client) RequestScheduler(ctx context.Context, r RequestSchedulerOption) (SchedulerID, error) {
@@ -247,7 +232,7 @@ func (c *Client) RequestScheduler(ctx context.Context, r RequestSchedulerOption)
 	if err != nil {
 		return SchedulerID{}, c.error(ErrConverter, err, "RequestSchedulerOption")
 	}
-	resp, err := c.c.RequestScheduler(ctx, req, r.CallOptions.GRPCOption()...)
+	resp, err := c.c.RequestScheduler(ctx, req, r.CallOptions...)
 	if err != nil {
 		return SchedulerID{}, err
 	}
@@ -258,7 +243,7 @@ type RunProgramOption struct {
 	SchedulerID  SchedulerID
 	Program      Program
 	Instructions []Instructioner
-	CallOptions  ClientCallOptions
+	CallOptions  []grpc.CallOption
 }
 
 func (c *Client) RunProgram(ctx context.Context, r RunProgramOption) error {
@@ -266,13 +251,13 @@ func (c *Client) RunProgram(ctx context.Context, r RunProgramOption) error {
 	if err != nil {
 		return c.error(ErrConverter, err, "RunProgramOption")
 	}
-	_, err = c.c.RunProgram(ctx, req, r.CallOptions.GRPCOption()...)
+	_, err = c.c.RunProgram(ctx, req, r.CallOptions...)
 	return err
 }
 
 type WaitResultOption struct {
 	IDs         []ProgramID
-	CallOptions ClientCallOptions
+	CallOptions []grpc.CallOption
 }
 
 func (c *Client) WaitResult(ctx context.Context, r WaitResultOption) (chan ProgramResult, error) {
@@ -283,7 +268,7 @@ func (c *Client) WaitResult(ctx context.Context, r WaitResultOption) (chan Progr
 		return nil, c.error(ErrConverter, err, "WaitResultOption")
 	}
 
-	stream, err := c.c.WaitResult(ctx, req, r.CallOptions.GRPCOption()...)
+	stream, err := c.c.WaitResult(ctx, req, r.CallOptions...)
 	if err != nil {
 		return nil, err
 	}

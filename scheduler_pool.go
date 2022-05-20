@@ -354,10 +354,10 @@ func (sp *SchedulerPool) runProgramSync(ctx context.Context, s Scheduler, p Prog
 
 func (sp *SchedulerPool) getProcessor(p Program) (Processor, error) {
 	if p.IsPCProcessor() {
-		return NewPCProcessor(sp.ProgramRepository, sp.InstructionRepository, sp.ExecutorPool), nil
+		return newPCProcessor(sp.ProgramRepository, sp.InstructionRepository, sp.ExecutorPool), nil
 	}
 	if p.IsDAGProcessor() {
-		return NewDAGProcessor(sp.ProgramRepository, sp.InstructionRepository, sp.ExecutorPool), nil
+		return newDAGProcessor(sp.ProgramRepository, sp.InstructionRepository, sp.ExecutorPool), nil
 	}
 	return nil, newError("Processor cannot be parsed")
 }
