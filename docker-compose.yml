@@ -30,7 +30,10 @@ services:
     command:
       - "gotlin"
       - "start"
-      - "--prometheus=:9080"
+      - "--http=:9080"
+      - "--prometheus"
+      - "--pprof"
+      - "--executor=false"
     ports:
       - "9080:9080"
 
@@ -43,6 +46,10 @@ services:
       - "gotlin"
       - "compute"
       - "--server=gotlin:9527"
+    deploy:
+      mode: replicated
+      replicas: 8
+    restart: always
 
   client:
     build: ./

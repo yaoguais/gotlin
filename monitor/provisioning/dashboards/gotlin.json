@@ -436,7 +436,7 @@
               }
             ]
           },
-          "unit": "ms"
+          "unit": "short"
         },
         "overrides": []
       },
@@ -460,14 +460,14 @@
       "targets": [
         {
           "exemplar": true,
-          "expr": "sum(gotlin_executor_execution_time_total{error=\"0\"}) by (host)",
+          "expr": "sum(gotlin_executor_execution_number_total{error=\"0\"}) by (id)",
           "instant": false,
           "interval": "",
-          "legendFormat": "executor-{{host}}",
+          "legendFormat": "executor-{{id}}",
           "refId": "A"
         }
       ],
-      "title": "Executors Execute Success",
+      "title": "Number of Executors Executed Success",
       "type": "timeseries"
     },
     {
@@ -519,9 +519,34 @@
               }
             ]
           },
-          "unit": "ms"
+          "unit": "short"
         },
-        "overrides": []
+        "overrides": [
+          {
+            "__systemRef": "hideSeriesFrom",
+            "matcher": {
+              "id": "byNames",
+              "options": {
+                "mode": "exclude",
+                "names": [
+                  "ADD"
+                ],
+                "prefix": "All except:",
+                "readOnly": true
+              }
+            },
+            "properties": [
+              {
+                "id": "custom.hideFrom",
+                "value": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": true
+                }
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
         "h": 8,
@@ -550,7 +575,7 @@
           "refId": "A"
         }
       ],
-      "title": "OpCodes Execute Success",
+      "title": "Number of OpCodes Executed Success",
       "type": "timeseries"
     },
     {
@@ -612,7 +637,7 @@
         "x": 0,
         "y": 12
       },
-      "id": 12,
+      "id": 13,
       "options": {
         "legend": {
           "calcs": [],
@@ -626,14 +651,14 @@
       "targets": [
         {
           "exemplar": true,
-          "expr": "sum(gotlin_program_submitted_total)",
+          "expr": "sum(gotlin_program_running)",
           "instant": false,
           "interval": "",
           "legendFormat": "numbers",
           "refId": "A"
         }
       ],
-      "title": "Submitted Programs",
+      "title": "Running Programs",
       "type": "timeseries"
     },
     {
@@ -695,7 +720,7 @@
         "x": 12,
         "y": 12
       },
-      "id": 13,
+      "id": 12,
       "options": {
         "legend": {
           "calcs": [],
@@ -709,17 +734,18 @@
       "targets": [
         {
           "exemplar": true,
-          "expr": "sum(gotlin_instruction_opcode_execution_time_total)",
+          "expr": "sum(rate(gotlin_program_exited_total[30s]))",
           "instant": false,
           "interval": "",
           "legendFormat": "numbers",
           "refId": "A"
         }
       ],
-      "title": "Submitted Instructions",
+      "title": "Programs processed per second",
       "type": "timeseries"
     }
   ],
+  "refresh": "5s",
   "schemaVersion": 32,
   "style": "dark",
   "tags": [],
@@ -727,12 +753,12 @@
     "list": []
   },
   "time": {
-    "from": "now-30m",
+    "from": "now-15m",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "",
   "title": "Gotlin Monitoring",
   "uid": "5LryXfunz",
-  "version": 3
+  "version": 2
 }

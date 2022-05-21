@@ -4,6 +4,6 @@ global:
 
 scrape_configs:
   - job_name: 'gotlin'
-    scrape_interval: 5s
+    scrape_interval: 1s
     static_configs:
       - targets: ['gotlin:9080']

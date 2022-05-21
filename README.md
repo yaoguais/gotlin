@@ -73,9 +73,14 @@ Then you can log in to the grafana web ui to view the system metrics. The login 
 
     Open from browser http://localhost:3000/d/5LryXfunz/gotlin-monitoring
 
+Due to the limitation of docker-compose, if there is currently only one Executor,
+run the following command to increase the number of Executors to 8.
+
+    docker-compose --compatibility up -d
+
 Finally, submit some computing tasks to the service node and check the changes of the indicators. 
 
-    docker-compose exec client gotlin submit --server="gotlin:9527" --program="@program.json" --fork=1000
+    docker-compose exec client gotlin submit --server="gotlin:9527" --program="@program.json" --fork=1000 --concurrency=8
 
 The content of the monitoring display is as follows.
 

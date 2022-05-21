@@ -13,6 +13,7 @@ require (
 	github.com/urfave/cli/v2 v2.6.0
 	github.com/vmihailenco/msgpack/v5 v5.3.5
 	github.com/yaoguais/dag v1.0.2-0.20220518015637-75a813b30a22
+	golang.org/x/sync v0.0.0-20201207232520-09787c993a3a
 	google.golang.org/grpc v1.46.0
 	google.golang.org/protobuf v1.28.0
 	gorm.io/driver/clickhouse v0.3.2

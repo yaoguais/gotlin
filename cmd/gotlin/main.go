@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/http/pprof"
 	"os"
 	"os/signal"
 	"sort"
@@ -16,6 +17,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/urfave/cli/v2"
 	. "github.com/yaoguais/gotlin" //revive:disable-line
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 )
 
@@ -42,7 +44,7 @@ func getApp() *cli.App {
 				Flags: []cli.Flag{
 					&cli.StringFlag{
 						Name:    "address",
-						Aliases: []string{"p"},
+						Aliases: []string{"a"},
 						Usage:   "The listening address has the format host:port",
 						Value:   "0.0.0.0:9527",
 					},
@@ -66,10 +68,23 @@ func getApp() *cli.App {
 						Value:   "",
 					},
 					&cli.StringFlag{
+						Name:    "http",
+						Aliases: []string{"p"},
+						Usage:   "HTTP port used to provide prometheus and pprof services",
+						Value:   ":9090",
+					},
+
+					&cli.BoolFlag{
 						Name:    "prometheus",
 						Aliases: []string{"m"},
-						Usage:   "Prometheus service listens on addresses like ':9090'",
-						Value:   "",
+						Usage:   "Whether to start the prometheus service on the HTTP port",
+						Value:   false,
+					},
+					&cli.BoolFlag{
+						Name:    "pprof",
+						Aliases: []string{"f"},
+						Usage:   "Whether to start the pprof service on the HTTP port",
+						Value:   false,
 					},
 				},
 				Action: start,
@@ -115,6 +130,12 @@ func getApp() *cli.App {
 						Usage:   "The number of submitted tasks that will be forked",
 						Value:   0,
 					},
+					&cli.IntFlag{
+						Name:    "concurrency",
+						Aliases: []string{"c"},
+						Usage:   "Number of multiple tasks to make at a time",
+						Value:   1,
+					},
 				},
 
 				Action: submit,
@@ -133,11 +154,11 @@ func start(c *cli.Context) error {
 	executor := c.Bool("executor")
 	driver := c.String("driver")
 	dsn := c.String("dsn")
-	prom := c.String("prometheus")
+	http := c.String("http")
+	prom := c.Bool("prometheus")
+	pprof := c.Bool("pprof")
 
-	if prom != "" {
-		startProm(prom)
-	}
+	startHTTP(http, prom, pprof)
 
 	options := []Option{
 		WithServerAddress(address),
@@ -230,8 +251,9 @@ func compute(c *cli.Context) error {
 
 func submit(c *cli.Context) error {
 	server := c.String("server")
-	file := c.String("program")
-	count := c.Int("fork") + 1
+	file := strings.TrimLeft(c.String("program"), "@")
+	fork := c.Int("fork")
+	concurrency := c.Int("concurrency")
 
 	options := []ClientOption{
 		WithClientTargetAddress(server),
@@ -250,11 +272,48 @@ func submit(c *cli.Context) error {
 		return err
 	}
 
-	wp := WaitResultOption{IDs: []ProgramID{}}
-	for i := 0; i < count; i++ {
-		p, ins, err := parseProgramFile(strings.TrimLeft(file, "@"))
+	results, err := submitProgram(ctx, g, s, file, 1)
+	if err != nil {
+		return err
+	}
+
+	if len(results) > 0 {
+		outputf("Program evaluates to %v\n", results[0])
+	}
+
+	if fork > 0 {
+		output("Process the remaining forked programs. Waiting...\n")
+
+		wg := &errgroup.Group{}
+		per := fork / concurrency
+		rest := fork % concurrency
+
+		for i := 0; i < concurrency; i++ {
+			n := per
+			if i == 0 {
+				n += rest
+			}
+			wg.Go(func() error {
+				_, err := submitProgram(ctx, g, s, file, n)
+				return err
+			})
+		}
+
+		err := wg.Wait()
 		if err != nil {
 			return err
+		}
+	}
+
+	return nil
+}
+
+func submitProgram(ctx context.Context, g *Client, s SchedulerID, file string, count int) ([]interface{}, error) {
+	wp := WaitResultOption{IDs: []ProgramID{}}
+	for i := 0; i < count; i++ {
+		p, ins, err := parseProgramFile(file)
+		if err != nil {
+			return nil, err
 		}
 
 		err = g.RunProgram(ctx, RunProgramOption{
@@ -263,7 +322,7 @@ func submit(c *cli.Context) error {
 			Instructions: ins,
 		})
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		wp.IDs = append(wp.IDs, p.ID)
@@ -271,18 +330,18 @@ func submit(c *cli.Context) error {
 
 	ch, err := g.WaitResult(ctx, wp)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var results []interface{}
 	for v := range ch {
 		if v.Error != nil {
-			return errors.Errorf("Error in program, %v\n", v.Error)
+			return nil, errors.Errorf("Error in program, %v\n", v.Error)
 		}
 		var value interface{}
 		err = json.Unmarshal(v.Result.([]byte), &value)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		results = append(results, value)
 		if len(results) == count {
@@ -290,11 +349,7 @@ func submit(c *cli.Context) error {
 		}
 	}
 
-	if len(results) > 0 {
-		outputf("Program evaluates to %v\n", results[0])
-	}
-
-	return nil
+	return results, nil
 }
 
 func parseProgramFile(file string) (p Program, ins []Instructioner, err error) {
@@ -390,9 +445,24 @@ func parseIDPairs(s string) (InstructionID, string) {
 	return id, s
 }
 
-func startProm(addr string) {
+func startHTTP(addr string, prom, pp bool) {
+	ok := addr != "" && (prom || pp)
+	if !ok {
+		return
+	}
 	go func() {
-		http.Handle("/metrics", promhttp.Handler())
-		http.ListenAndServe(addr, nil)
+		mux := http.NewServeMux()
+		if prom {
+			mux.Handle("/metrics", promhttp.Handler())
+		}
+		if pp {
+			mux.HandleFunc("/debug/pprof/", pprof.Index)
+			mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+			mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+			mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+			mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+		}
+		srv := http.Server{Addr: addr, Handler: mux}
+		srv.ListenAndServe()
 	}()
 }

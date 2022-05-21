@@ -44,6 +44,14 @@ var (
 		ConstLabels: promConstLabels,
 	}, []string{"id", "error"})
 
+	totalExecutionNumberOfExecutor = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace:   promNamespace,
+		Subsystem:   promExecutor,
+		Name:        "execution_number_total",
+		Help:        "Executor execution number statistics with or without error conditions",
+		ConstLabels: promConstLabels,
+	}, []string{"id", "error"})
+
 	numberOfSubmittedProgram = promauto.NewCounter(prometheus.CounterOpts{
 		Namespace:   promNamespace,
 		Subsystem:   promProgram,
@@ -59,6 +67,14 @@ var (
 		Help:        "The number of currently running Programs",
 		ConstLabels: promConstLabels,
 	})
+
+	numberOfExitedProgram = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace:   promNamespace,
+		Subsystem:   promProgram,
+		Name:        "exited_total",
+		Help:        "The number of exited Programs",
+		ConstLabels: promConstLabels,
+	}, []string{"error"})
 
 	numberOfExecutedErrorProgram = promauto.NewCounter(prometheus.CounterOpts{
 		Namespace:   promNamespace,
@@ -109,6 +125,7 @@ func (m prom) Execute(id ExecutorID, d time.Duration, err error) {
 
 	v := d / 1e6
 	totalExecutionTimeOfExecutor.WithLabelValues(id.String(), errValue).Add(float64(v))
+	totalExecutionNumberOfExecutor.WithLabelValues(id.String(), errValue).Inc()
 }
 
 func (m prom) AddRunningProgram() {
@@ -118,9 +135,12 @@ func (m prom) AddRunningProgram() {
 
 func (m prom) RemoveRunningProgram(err error) {
 	numberOfRunningProgram.Dec()
+	errValue := "0"
 	if err != nil {
+		errValue = "1"
 		numberOfExecutedErrorProgram.Inc()
 	}
+	numberOfExitedProgram.WithLabelValues(errValue).Inc()
 }
 
 func (m prom) ExecuteInstruction(in Instruction, d time.Duration, err error) {
