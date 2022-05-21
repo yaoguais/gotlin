@@ -214,6 +214,8 @@ func (g *Gotlin) StartServer(ctx context.Context) (err error) {
 		return
 	}
 
+	metrics.Up()
+
 	return g.gs.Serve(lis)
 }
 

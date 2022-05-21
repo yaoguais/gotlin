@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"sort"
@@ -12,6 +13,7 @@ import (
 	"syscall"
 
 	"github.com/pkg/errors"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/urfave/cli/v2"
 	. "github.com/yaoguais/gotlin" //revive:disable-line
 	"google.golang.org/grpc"
@@ -63,6 +65,12 @@ func getApp() *cli.App {
 						EnvVars: []string{"DATABASE_DSN"},
 						Value:   "",
 					},
+					&cli.StringFlag{
+						Name:    "prometheus",
+						Aliases: []string{"m"},
+						Usage:   "Prometheus service listens on addresses like ':9090'",
+						Value:   "",
+					},
 				},
 				Action: start,
 			},
@@ -101,6 +109,12 @@ func getApp() *cli.App {
 						Usage:   "Submit the task and use the @ symbol to read from the file",
 						Value:   "@program.json",
 					},
+					&cli.IntFlag{
+						Name:    "fork",
+						Aliases: []string{"f"},
+						Usage:   "The number of submitted tasks that will be forked",
+						Value:   0,
+					},
 				},
 
 				Action: submit,
@@ -119,6 +133,11 @@ func start(c *cli.Context) error {
 	executor := c.Bool("executor")
 	driver := c.String("driver")
 	dsn := c.String("dsn")
+	prom := c.String("prometheus")
+
+	if prom != "" {
+		startProm(prom)
+	}
 
 	options := []Option{
 		WithServerAddress(address),
@@ -212,11 +231,7 @@ func compute(c *cli.Context) error {
 func submit(c *cli.Context) error {
 	server := c.String("server")
 	file := c.String("program")
-
-	p, ins, err := parseProgramFile(strings.TrimLeft(file, "@"))
-	if err != nil {
-		return err
-	}
+	count := c.Int("fork") + 1
 
 	options := []ClientOption{
 		WithClientTargetAddress(server),
@@ -235,24 +250,32 @@ func submit(c *cli.Context) error {
 		return err
 	}
 
-	err = g.RunProgram(ctx, RunProgramOption{
-		SchedulerID:  s,
-		Program:      p,
-		Instructions: ins,
-	})
-	if err != nil {
-		return err
-	}
-
-	ch, err := g.WaitResult(ctx, WaitResultOption{IDs: []ProgramID{p.ID}})
-	if err != nil {
-		return err
-	}
-
-	for v := range ch {
-		if v.ID != p.ID {
-			continue
+	wp := WaitResultOption{IDs: []ProgramID{}}
+	for i := 0; i < count; i++ {
+		p, ins, err := parseProgramFile(strings.TrimLeft(file, "@"))
+		if err != nil {
+			return err
 		}
+
+		err = g.RunProgram(ctx, RunProgramOption{
+			SchedulerID:  s,
+			Program:      p,
+			Instructions: ins,
+		})
+		if err != nil {
+			return err
+		}
+
+		wp.IDs = append(wp.IDs, p.ID)
+	}
+
+	ch, err := g.WaitResult(ctx, wp)
+	if err != nil {
+		return err
+	}
+
+	var results []interface{}
+	for v := range ch {
 		if v.Error != nil {
 			return errors.Errorf("Error in program, %v\n", v.Error)
 		}
@@ -261,8 +284,14 @@ func submit(c *cli.Context) error {
 		if err != nil {
 			return err
 		}
-		outputf("Program evaluates to %v\n", value)
-		return nil
+		results = append(results, value)
+		if len(results) == count {
+			break
+		}
+	}
+
+	if len(results) > 0 {
+		outputf("Program evaluates to %v\n", results[0])
 	}
 
 	return nil
@@ -359,4 +388,11 @@ func parseIDPairs(s string) (InstructionID, string) {
 		return NewInstructionID(), s
 	}
 	return id, s
+}
+
+func startProm(addr string) {
+	go func() {
+		http.Handle("/metrics", promhttp.Handler())
+		http.ListenAndServe(addr, nil)
+	}()
 }

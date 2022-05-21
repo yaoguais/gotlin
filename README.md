@@ -45,6 +45,7 @@ Output: Program evaluates to 12
 ## Contents
 
 - [Architecture](#architecture)
+- [Benchmark and display metrics using Prometheus and visualize using grafana](#benchmark-and-display-metrics-using-prometheus-and-visualize-using-grafana)
 - [Submit a task to the service node](#submit-a-task-to-the-service-node)
 - [Design a compute node with a custom instruction set](#design-a-compute-node-with-a-custom-instruction-set)
 - [Intersect the results of the query in the database](#intersect-the-results-of-the-query-in-the-database)
@@ -55,6 +56,32 @@ Output: Program evaluates to 12
 
 [![Gotlin Architecture Diagram](./images/gotlin_architecture_diagram.png)](./images/gotlin_architecture_diagram.png)
 
+## Benchmark and display metrics using Prometheus and visualize using grafana
+
+First compile the executable.
+
+    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o gotlin cmd/gotlin/main.go 
+
+Then use docker-compose to compile the image and run.
+
+    docker-compose build --no-cache
+    docker-compose up -d
+
+Of course you need to install [docker-compose](https://docs.docker.com/compose/install/).
+
+Then you can log in to the grafana web ui to view the system metrics. The login account is admin/admin.
+
+    Open from browser http://localhost:3000/d/5LryXfunz/gotlin-monitoring
+
+Finally, submit some computing tasks to the service node and check the changes of the indicators. 
+
+    docker-compose exec client gotlin submit --server="gotlin:9527" --program="@program.json" --fork=1000
+
+The content of the monitoring display is as follows.
+
+[![Gotlin Monitor](./images/gotlin_monitor.png)](./images/gotlin_monitor.png)
+
+You can do your own benchmarks by referring to the above operations. Best of all, always do your own benchmarks.
 
 ## Submit a task to the service node
 

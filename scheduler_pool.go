@@ -77,7 +77,7 @@ func (sp *SchedulerPool) newScheduler(ctx context.Context) (Scheduler, error) {
 	return s, wrapError(err, "Save Scheduler to Repository")
 }
 
-func (sp *SchedulerPool) RunProgramSync(ctx context.Context, sid SchedulerID, p Program, ins []Instructioner) (interface{}, error) {
+func (sp *SchedulerPool) RunProgramSync(ctx context.Context, sid SchedulerID, p Program, ins []Instructioner) (value interface{}, err error) {
 	s, err := sp.SchedulerRepository.Find(ctx, sid)
 	if err != nil {
 		return nil, err
@@ -92,6 +92,11 @@ func (sp *SchedulerPool) RunProgramSync(ctx context.Context, sid SchedulerID, p 
 	if err != nil {
 		return nil, err
 	}
+
+	metrics.AddRunningProgram()
+	defer func() {
+		metrics.RemoveRunningProgram(err)
+	}()
 
 	err = sp.runProgramSync(ctx, s, p)
 	if err != nil {
@@ -121,7 +126,14 @@ func (sp *SchedulerPool) RunProgram(ctx context.Context, sid SchedulerID, p Prog
 	go func() {
 		defer sp.wg.Done()
 
-		err := sp.runProgramSync(ctx, s, p)
+		var err error
+
+		metrics.AddRunningProgram()
+		defer func() {
+			metrics.RemoveRunningProgram(err)
+		}()
+
+		err = sp.runProgramSync(ctx, s, p)
 		if err != nil {
 			i := ProgramResult{ID: p.ID, Error: err}
 			sp.pub <- i

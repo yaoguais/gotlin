@@ -105,7 +105,7 @@ func (m *ExecutorPool) FindByHost(ctx context.Context, host Host) (ExecutorID, e
 	return id, nil
 }
 
-func (m *ExecutorPool) GetExecuteHandler(ctx context.Context, op OpCode) (eh ExecutorHandler, err error) {
+func (m *ExecutorPool) GetExecutor(ctx context.Context, op OpCode) (e Executor, eh ExecutorHandler, err error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -115,7 +115,7 @@ func (m *ExecutorPool) GetExecuteHandler(ctx context.Context, op OpCode) (eh Exe
 		id := m.ids[i]
 		e, err := m.ExecutorRepository.Find(ctx, id)
 		if err != nil {
-			return nil, err
+			return Executor{}, nil, err
 		}
 		ok := e.IsState(StateRunning) && e.Labels.ExistOpCode(op)
 		if ok {
@@ -124,31 +124,40 @@ func (m *ExecutorPool) GetExecuteHandler(ctx context.Context, op OpCode) (eh Exe
 	}
 
 	if len(l) == 0 {
-		return nil, newErrorf("Executor not found, opcode %s", op)
+		return Executor{}, nil, newErrorf("Executor not found, opcode %s", op)
 	}
 
-	e, err := m.lb.Next(ctx, l)
+	e, err = m.lb.Next(ctx, l)
 	if err != nil {
-		return nil, wrapError(err, "Load Balancer")
+		return Executor{}, nil, wrapError(err, "Load Balancer")
 	}
 
 	if e.IsEmptyHost() {
-		return m.is.GetExecutorHandler(op)
+		eh, err = m.is.GetExecutorHandler(op)
+		return
 	}
 
 	ec, ok := m.cs[e.Host]
 	if !ok {
-		return nil, newErrorf("Remote Executor %s not found", e.ID)
+		return Executor{}, nil, newErrorf("Remote Executor %s not found", e.ID)
 	}
 
-	return ec.Execute, nil
+	return e, ec.Execute, nil
 }
 
-func (m *ExecutorPool) Execute(ctx context.Context, op Instruction, args ...Instruction) (InstructionResult, error) {
-	handler, err := m.GetExecuteHandler(ctx, op.OpCode)
+func (m *ExecutorPool) Execute(ctx context.Context, op Instruction, args ...Instruction) (ir InstructionResult, err error) {
+	executor, handler, err := m.GetExecutor(ctx, op.OpCode)
 	if err != nil {
 		return InstructionResult{}, err
 	}
+
+	startTime := nowFn()
+	defer func() {
+		d := nowFn().Sub(startTime)
+		metrics.Execute(executor.ID, d, err)
+		metrics.ExecuteInstruction(op, d, err)
+	}()
+
 	return handler(ctx, op, args...)
 }
 

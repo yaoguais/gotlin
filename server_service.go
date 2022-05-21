@@ -36,6 +36,7 @@ func (s *serverServiceImpl) RegisterExecutor(ctx context.Context, req *RegisterE
 	if err != nil {
 		return
 	}
+	metrics.AddExecutor()
 	return &RegisterExecutorResponse{}, nil
 }
 
@@ -53,6 +54,7 @@ func (s *serverServiceImpl) UnregisterExecutor(ctx context.Context, req *Unregis
 	if err != nil {
 		return
 	}
+	metrics.RemoveExecutor()
 	return &UnregisterExecutorResponse{}, nil
 }
 
