@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -19,6 +20,7 @@ import (
 	. "github.com/yaoguais/gotlin" //revive:disable-line
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/keepalive"
 )
 
 var (
@@ -149,6 +151,27 @@ func getApp() *cli.App {
 	return app
 }
 
+var (
+	kaep = keepalive.EnforcementPolicy{
+		MinTime:             5 * time.Minute,
+		PermitWithoutStream: true,
+	}
+
+	kasp = keepalive.ServerParameters{
+		MaxConnectionIdle:     120 * time.Second,
+		MaxConnectionAge:      240 * time.Second,
+		MaxConnectionAgeGrace: 5 * time.Second,
+		Time:                  5 * time.Second,
+		Timeout:               5 * time.Second,
+	}
+
+	kacp = keepalive.ClientParameters{
+		Time:                10 * time.Second,
+		Timeout:             5 * time.Second,
+		PermitWithoutStream: true,
+	}
+)
+
 func start(c *cli.Context) error {
 	address := c.String("address")
 	executor := c.Bool("executor")
@@ -164,6 +187,10 @@ func start(c *cli.Context) error {
 		WithServerAddress(address),
 		WithServerExecutor(executor),
 		WithEnableServer(true),
+		WithGRPCServerOption(
+			grpc.KeepaliveEnforcementPolicy(kaep),
+			grpc.KeepaliveParams(kasp),
+		),
 	}
 
 	if dsn != "" {
@@ -211,7 +238,10 @@ func compute(c *cli.Context) error {
 
 	options := []ClientOption{
 		WithClientTargetAddress(server),
-		WithClientGRPCOptions(grpc.WithInsecure()),
+		WithClientGRPCOptions(
+			grpc.WithInsecure(),
+			grpc.WithKeepaliveParams(kacp),
+		),
 	}
 
 	g, err := NewClient(options...)
@@ -257,7 +287,10 @@ func submit(c *cli.Context) error {
 
 	options := []ClientOption{
 		WithClientTargetAddress(server),
-		WithClientGRPCOptions(grpc.WithInsecure()),
+		WithClientGRPCOptions(
+			grpc.WithInsecure(),
+			grpc.WithKeepaliveParams(kacp),
+		),
 	}
 
 	g, err := NewClient(options...)

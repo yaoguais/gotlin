@@ -51,6 +51,7 @@ Output: Program evaluates to 12
 - [Intersect the results of the query in the database](#intersect-the-results-of-the-query-in-the-database)
 - [Use as an embedded library and an in-memory database](#use-as-an-embedded-library-and-an-in-memory-database)
 - [License](#license)
+- [Thanks to contributors](#thanks-to-contributors)
 
 ## Architecture
 
@@ -253,3 +254,8 @@ func main() {
     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
     See the License for the specific language governing permissions and
     limitations under the License.
+
+## Thanks to contributors
+
+[@seboghpub](https://github.com/seboghpub) 
+[@sebogh](https://github.com/sebogh)
